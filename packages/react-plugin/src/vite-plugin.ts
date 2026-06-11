@@ -116,7 +116,7 @@ function createWidget(sendMessage) {
   const widget = document.createElement("div");
   widget.className = "widget";
   widget.innerHTML = \`
-    <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Clear selection">✕</button></div>
+    <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Close design mode">✕</button></div>
     <div class="error-banner" style="display:none">⚠️ <span class="error-msg"></span></div>
     <div class="selections"></div>
     <div class="input-row">
@@ -381,7 +381,7 @@ let errorBannerTimer = null;
   input.addEventListener("focus", function() { widget.classList.add("expanded"); });
   input.addEventListener("blur", function() { widget.classList.remove("expanded"); });
 
-  closeBtn.addEventListener("click", function() { clearAllSelections(); });
+  closeBtn.addEventListener("click", function() { disconnect(); });
 
 errorBanner.addEventListener("click", function() {
   errorBanner.style.display = "none";
@@ -527,7 +527,11 @@ function handleServerMessage(message) {
 }
 
 function disconnect() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "design:disconnect" }));
+  }
   if (ws) { ws.onclose = null; ws.close(); ws = null; isConnected = false; }
+  sessionStorage.removeItem("pi-design-selections");
   destroyWidget();
 }
 
