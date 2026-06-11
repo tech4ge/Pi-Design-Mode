@@ -209,32 +209,10 @@ function createWidget(sendMessage) {
     render();
   }
 
-  var pendingFlash = false;
-  var flashFallbackTimer = null;
-
   function flashEditedElements() {
     if (submittedOids.length === 0) return;
-    pendingFlash = true;
-    // Listen for Vite HMR update — flash on the NEW elements after re-render
-    window.addEventListener("vite:afterUpdate", onHmrUpdate);
-    // Fallback: if no HMR fires within 3s (e.g. non-component edit), flash anyway
-    flashFallbackTimer = setTimeout(function() {
-      window.removeEventListener("vite:afterUpdate", onHmrUpdate);
-      doFlash();
-    }, 3000);
-  }
-
-  function onHmrUpdate() {
-    if (!pendingFlash) return;
-    // HMR fired — wait 300ms for React to re-render, then flash the new elements
-    setTimeout(function() { doFlash(); }, 300);
-    if (flashFallbackTimer) clearTimeout(flashFallbackTimer);
-    window.removeEventListener("vite:afterUpdate", onHmrUpdate);
-  }
-
-  function doFlash() {
-    if (!pendingFlash) return;
-    pendingFlash = false;
+    // By the time design:done arrives, HMR has already re-rendered.
+    // Flash the new elements immediately.
     var flashed = 0;
     for (var i = 0; i < submittedOids.length; i++) {
       var el = document.querySelector('[data-oid="' + CSS.escape(submittedOids[i]) + '"]');
