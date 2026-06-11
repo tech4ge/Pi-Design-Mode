@@ -403,6 +403,7 @@ function showHoverTooltip(dataOid, x, y) {
     hoverTooltip.style.cssText = "position:fixed;z-index:999998;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;font-size:12px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:4px 8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.2);";
     document.body.appendChild(hoverTooltip);
   }
+  var parsed = parseDataOid(dataOid);
   var escapeHtml = function(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
   var tag = "";
   var location = dataOid;
