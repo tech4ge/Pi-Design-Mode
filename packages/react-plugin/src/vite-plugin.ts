@@ -118,11 +118,11 @@ function createWidget(sendMessage) {
     .qa-btn { background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
     .qa-btn:hover { background: #45475a; border-color: #89b4fa; }
     .qa-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .history-dropdown { position: absolute; left: 0; right: 0; bottom: 100%; background: #1e1e2e; border: 1px solid #45475a; border-radius: 8px; max-height: 160px; overflow-y: auto; z-index: 10; margin-bottom: 4px; box-shadow: 0 -4px 16px rgba(0,0,0,0.3); }
-    .history-item { padding: 6px 10px; font-size: 12px; color: #cdd6f4; cursor: pointer; border-bottom: 1px solid #313244; }
+    .history-panel { position: absolute; top: 0; right: 100%; bottom: 0; width: 200px; background: #181825; border-right: 1px solid #45475a; border-radius: 12px 0 0 12px; padding: 8px 0; overflow-y: auto; display: none; flex-direction: column; }
+    .history-panel-title { padding: 4px 10px 8px; font-size: 11px; color: #6c7086; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .history-item { padding: 6px 10px; font-size: 12px; color: #cdd6f4; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .history-item:hover { background: #313244; }
-    .history-item:last-child { border-bottom: none; }
-    .history-clear { padding: 6px 10px; font-size: 11px; color: #f38ba8; cursor: pointer; text-align: center; border-top: 1px solid #45475a; }
+    .history-clear { padding: 8px 10px; font-size: 11px; color: #f38ba8; cursor: pointer; text-align: center; border-top: 1px solid #313244; margin-top: auto; }
     .history-clear:hover { background: #313244; }
   \`;
   const widget = document.createElement("div");
@@ -131,10 +131,9 @@ function createWidget(sendMessage) {
     <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Close design mode">✕</button></div>
     <div class="error-banner" style="display:none">⚠️ <span class="error-msg"></span></div>
     <div class="selections"></div>
-    <div class="input-row" style="position:relative">
+    <div class="input-row">
       <textarea rows="1" placeholder="Describe the change..."></textarea>
       <button class="submit-btn">Submit</button>
-      <div class="history-dropdown" style="display:none"></div>
     </div>
     <div class="quick-actions">
       <button class="qa-btn" data-action="center">Center</button>
@@ -145,6 +144,7 @@ function createWidget(sendMessage) {
     </div>
     <div class="processing" style="display:none">⏳ Processing...<button class="cancel" style="display:none">Cancel</button></div>
     <div class="hint">Alt+Click to select · Esc to clear</div>
+    <div class="history-panel" style="display:none"><div class="history-panel-title">Recent</div></div>
   \`;
   shadow.appendChild(style);
   shadow.appendChild(widget);
@@ -157,7 +157,7 @@ function createWidget(sendMessage) {
   const processingEl = shadow.querySelector(".processing");
 const errorBanner = shadow.querySelector(".error-banner");
 const errorMsg = shadow.querySelector(".error-msg");
-const historyDropdown = shadow.querySelector(".history-dropdown");
+const historyDropdown = shadow.querySelector(".history-panel");
 const cancelBtn = shadow.querySelector(".cancel");
 const quickActions = shadow.querySelector(".quick-actions");
 const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
@@ -215,7 +215,10 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
   function showHistory() {
     var h = getHistory();
     if (h.length === 0 || input.value.length > 0) { historyDropdown.style.display = "none"; return; }
+    // Keep the title, remove everything after it
+    var title = historyDropdown.querySelector(".history-panel-title");
     historyDropdown.innerHTML = "";
+    historyDropdown.appendChild(title);
     for (var i = 0; i < h.length; i++) {
       var item = document.createElement("div");
       item.className = "history-item";
@@ -226,7 +229,7 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
     clearEl.className = "history-clear";
     clearEl.textContent = "Clear history";
     historyDropdown.appendChild(clearEl);
-    historyDropdown.style.display = "block";
+    historyDropdown.style.display = "flex";
   }
 
   function render() {
