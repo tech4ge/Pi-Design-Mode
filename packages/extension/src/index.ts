@@ -1,11 +1,80 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { DesignModeServer } from "./server.js";
 import type { ClientMessage } from "./server.js";
-import { parseDataOid } from "@pi-design/react-plugin/data-oid";
+import { parseDataOid } from "../../react-plugin/src/data-oid.js";
+import { inspectElement } from "./inspect.js";
+import { resolve } from "node:path";
 
 export default function (pi: ExtensionAPI) {
   let server: DesignModeServer | undefined;
   let currentSelection: ClientMessage[] = [];
+  let designModeActive = false;
+
+  // --- design_inspect tool ---
+
+  pi.registerTool({
+    name: "design_inspect",
+    label: "Inspect UI Element",
+    description: "Inspect a React component in the running app. Returns component name, source file, props, and layout info. Use when the user has selected an element in design mode or when you need to inspect a specific component.",
+    promptSnippet: "Inspect React UI elements for design changes",
+    promptGuidelines: [
+      "Use design_inspect when the user has submitted a design change and you need element details.",
+      "design_inspect requires a dataOid parameter — use the dataOid from the design-mode selection message.",
+    ],
+    parameters: Type.Object({
+      dataOid: Type.String({ description: "The data-oid attribute value of the element to inspect" }),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const parsed = parseDataOid(params.dataOid);
+      if (!parsed) {
+        return {
+          content: [{ type: "text", text: `Invalid data-oid format: ${params.dataOid}` }],
+          details: {},
+          isError: true,
+        };
+      }
+
+      // Highlight the element in the browser
+      server?.broadcast({ type: "design:highlight", dataOid: params.dataOid });
+
+      // Find element info from prior selection messages
+      const priorSelect = currentSelection.find(
+        (s) => s.type === "design:select" && s.dataOid === params.dataOid,
+      );
+
+      // Inspect the source file
+      const filePath = resolve(ctx.cwd, parsed.filePath);
+      const inspected = await inspectElement({
+        dataOid: params.dataOid,
+        filePath,
+        computedStyles: priorSelect?.type === "design:select" ? priorSelect.computedStyles : undefined,
+        boundingBox: priorSelect?.type === "design:select" ? priorSelect.boundingBox : undefined,
+      });
+
+      if (!inspected) {
+        return {
+          content: [{ type: "text", text: `Could not inspect element at ${parsed.filePath}:${parsed.line}` }],
+          details: {},
+          isError: true,
+        };
+      }
+
+      // Merge runtime info from browser
+      const result = {
+        ...inspected,
+        computedStyles: priorSelect?.type === "design:select" ? priorSelect.computedStyles : undefined,
+        boundingBox: priorSelect?.type === "design:select" ? priorSelect.boundingBox : undefined,
+      };
+
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        details: result,
+      };
+    },
+  });
+
+  // --- UI ---
 
   const updateWidget = (ctx: any) => {
     if (!server) return;
@@ -30,6 +99,8 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setWidget("design", lines);
   };
 
+  // --- /design command ---
+
   pi.registerCommand("design", {
     description: "Toggle design mode — connect to browser for visual editing",
     handler: async (_args, ctx) => {
@@ -37,6 +108,7 @@ export default function (pi: ExtensionAPI) {
         server.broadcast({ type: "design:mode:off" });
         await server.stop();
         server = undefined;
+        designModeActive = false;
         currentSelection = [];
         ctx.ui.setStatus("design", undefined);
         ctx.ui.setWidget("design", undefined);
@@ -48,6 +120,7 @@ export default function (pi: ExtensionAPI) {
 
       try {
         const port = await server.start();
+        designModeActive = true;
         ctx.ui.setStatus("design", "🔴 Design Mode");
         updateWidget(ctx);
 
@@ -62,6 +135,8 @@ export default function (pi: ExtensionAPI) {
       }
     },
   });
+
+  // --- Message handling ---
 
   function handleMessage(message: ClientMessage, ctx: any) {
     switch (message.type) {
@@ -127,14 +202,14 @@ export default function (pi: ExtensionAPI) {
           },
         }, { triggerTurn: true });
 
-        // Notify browser we're processing
         server?.broadcast({ type: "design:processing" });
         break;
       }
     }
   }
 
-  // When the LLM finishes, notify the browser
+  // --- Lifecycle ---
+
   pi.on("turn_end", () => {
     if (server) {
       server.broadcast({ type: "design:done" });
