@@ -8,7 +8,6 @@ export default defineConfig([
       "vite-plugin": "src/vite-plugin.ts",
       "data-oid": "src/data-oid.ts",
       transform: "src/transform.ts",
-      client: "src/client.ts",
       next: "src/next.tsx",
     },
     format: ["esm"],
@@ -16,7 +15,7 @@ export default defineConfig([
     dts: false,
     clean: true,
     sourcemap: true,
-    external: ["react", "react-dom", "@pi-design/react-plugin/client"],
+    external: ["react", "react-dom", "@pi-design/react-plugin/browser-client", "fs", "path", "url"],
   },
   // Browser client — self-contained IIFE, auto-executes on load
   // After build, we rename .global.js → .js for clean import path

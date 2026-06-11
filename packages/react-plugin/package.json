@@ -21,11 +21,6 @@
       "import": "./dist/transform.js",
       "default": "./dist/transform.js"
     },
-    "./client": {
-      "import": "./dist/client.js",
-      "require": "./dist/client.js",
-      "default": "./dist/client.js"
-    },
     "./browser-client": {
       "import": "./dist/browser-client.js",
       "require": "./dist/browser-client.js",
