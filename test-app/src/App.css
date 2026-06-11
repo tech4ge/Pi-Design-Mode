@@ -59,10 +59,16 @@
   }
 }
 
+.text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 #center {
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 32px;
   place-content: center;
   place-items: center;
   flex-grow: 1;

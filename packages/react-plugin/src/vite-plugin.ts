@@ -86,14 +86,15 @@ function createWidget(sendMessage) {
   const style = document.createElement("style");
   style.textContent = \`
     :host { all: initial; font-family: system-ui, -apple-system, sans-serif; }
-    .widget { background: #1e1e2e; border: 1px solid #45475a; border-radius: 12px; padding: 12px; min-width: 280px; max-width: 360px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); color: #cdd6f4; font-size: 13px; }
+    .widget { background: #1e1e2e; border: 1px solid #45475a; border-radius: 12px; padding: 12px; min-width: 300px; max-width: 420px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); color: #cdd6f4; font-size: 13px; transition: min-width 0.2s ease; }
+    .widget.expanded { min-width: 380px; }
     .header { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
     .header .title { flex: 1; display: flex; align-items: center; gap: 6px; }
     .close-btn { background: none; border: none; color: #6c7086; cursor: pointer; padding: 2px 6px; font-size: 16px; border-radius: 4px; line-height: 1; }
     .close-btn:hover { color: #cdd6f4; background: #313244; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #f38ba8; display: inline-block; }
     .dot.connected { background: #a6e3a1; }
-    .selections { max-height: 120px; overflow-y: auto; margin-bottom: 8px; }
+    .selections { max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
     .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin-right: 3px; }
     .selection-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #313244; border-radius: 6px; margin-bottom: 4px; font-size: 12px; cursor: pointer; transition: background 0.1s; }
     .selection-item:hover { background: #45475a; }
@@ -101,9 +102,9 @@ function createWidget(sendMessage) {
     .selection-item .file { color: #a6adc8; flex: 1; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .selection-item .remove { background: none; border: none; color: #f38ba8; cursor: pointer; padding: 0 4px; font-size: 14px; }
     .selection-item .remove:hover { color: #eba0ac; }
-    .input-row { display: flex; gap: 6px; }
-    .input-row input { flex: 1; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 6px 8px; color: #cdd6f4; font-size: 13px; outline: none; }
-    .input-row input:focus { border-color: #89b4fa; }
+    .input-row { display: flex; gap: 6px; align-items: flex-end; }
+    .input-row textarea { flex: 1; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 6px 8px; color: #cdd6f4; font-size: 13px; outline: none; resize: none; overflow-y: auto; max-height: 120px; line-height: 1.4; font-family: inherit; }
+    .input-row textarea:focus { border-color: #89b4fa; }
     .submit-btn { background: #89b4fa; color: #1e1e2e; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; cursor: pointer; font-size: 13px; }
     .submit-btn:hover { background: #b4d0fb; }
     .submit-btn:disabled { background: #45475a; color: #6c7086; cursor: not-allowed; }
@@ -116,7 +117,7 @@ function createWidget(sendMessage) {
     <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Clear selection">✕</button></div>
     <div class="selections"></div>
     <div class="input-row">
-      <input type="text" placeholder="Describe the change..." />
+      <textarea rows="1" placeholder="Describe the change..."></textarea>
       <button class="submit-btn">Submit</button>
     </div>
     <div class="processing" style="display:none">⏳ Processing...</div>
@@ -128,7 +129,7 @@ function createWidget(sendMessage) {
   const dot = shadow.querySelector(".dot");
   const closeBtn = shadow.querySelector(".close-btn");
   const selectionsContainer = shadow.querySelector(".selections");
-  const input = shadow.querySelector("input");
+  const input = shadow.querySelector("textarea");
   const submitBtn = shadow.querySelector(".submit-btn");
   const processingEl = shadow.querySelector(".processing");
 
@@ -301,14 +302,25 @@ function createWidget(sendMessage) {
       structuralContext: structuralContext,
     });
     input.value = "";
+    input.style.height = "auto";
     isProcessing = true;
     processingEl.style.display = "block";
     render();
   });
 
+  function autoGrow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  }
+
+  input.addEventListener("input", autoGrow);
+
   input.addEventListener("keydown", function(e) {
-    if (e.key === "Enter") submitBtn.click();
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitBtn.click(); }
   });
+
+  input.addEventListener("focus", function() { widget.classList.add("expanded"); });
+  input.addEventListener("blur", function() { widget.classList.remove("expanded"); });
 
   closeBtn.addEventListener("click", function() { clearAllSelections(); });
 
