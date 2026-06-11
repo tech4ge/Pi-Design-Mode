@@ -250,11 +250,17 @@ function createWidget(sendMessage) {
 
   window.__piDesignWidget = {
     addSelection: function(data) {
-      selections = selections.filter(function(s) { return s.dataOid !== data.dataOid; });
+      var existing = selections.findIndex(function(s) { return s.dataOid === data.dataOid; });
+      if (existing !== -1) {
+        // Already selected — deselect it (toggle)
+        removeSelection(data.dataOid);
+        return false;
+      }
       selections.push(data);
       var color = SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length];
       applyHighlight(data.dataOid, color);
       render();
+      return true;
     },
     removeSelection: removeSelection,
     clearAllSelections: clearAllSelections,
@@ -336,8 +342,9 @@ function handleAltClick(event) {
   var boundingBox = getBoundingBox(target);
   var selector = getSelector(target);
   var selectionData = { dataOid: dataOid, selector: selector, computedStyles: computedStyles, boundingBox: boundingBox, tagName: target.tagName.toLowerCase(), textContent: (target.textContent || "").slice(0, 200) };
-  if (ws && isConnected) ws.send(JSON.stringify({ type: "design:select", dataOid: selectionData.dataOid, selector: selectionData.selector, computedStyles: selectionData.computedStyles, boundingBox: selectionData.boundingBox, tagName: selectionData.tagName, textContent: selectionData.textContent }));
-  if (window.__piDesignWidget) window.__piDesignWidget.addSelection(selectionData);
+  var wasAdded = true;
+  if (window.__piDesignWidget) wasAdded = window.__piDesignWidget.addSelection(selectionData);
+  if (wasAdded && ws && isConnected) ws.send(JSON.stringify({ type: "design:select", dataOid: selectionData.dataOid, selector: selectionData.selector, computedStyles: selectionData.computedStyles, boundingBox: selectionData.boundingBox, tagName: selectionData.tagName, textContent: selectionData.textContent }));
 }
 
 function getComputedStyles(element) {
