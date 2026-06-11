@@ -82,13 +82,14 @@ describe("piDesignVitePlugin", () => {
     expect(result).toContain("parseDataOid");
   });
 
-  it("transformIndexHtml injects script tag", () => {
+  it("injects client script import into main.tsx", () => {
     const plugin = piDesignVitePlugin({ projectRoot: PROJECT_ROOT });
-    const transformIndexHtml = plugin.transformIndexHtml as unknown as (html: string) => unknown[];
+    const transformFn = plugin.transform as unknown as (code: string, id: string) => TransformResult | null;
 
-    const result = transformIndexHtml("<html><head></head><body></body></html>");
-    expect(result).toHaveLength(1);
-    expect(result[0].tag).toBe("script");
-    expect(result[0].children).toContain("virtual:pi-design-client");
+    const source = `import React from "react";\nReactDOM.createRoot(document.getElementById("root")!).render(<App />);`;
+    const result = transformFn(source, "/home/user/my-app/src/main.tsx");
+    expect(result).not.toBeNull();
+    expect(result!.code).toContain('import "virtual:pi-design-client"');
+    expect(result!.code).toContain("ReactDOM"); // Original code preserved
   });
 });

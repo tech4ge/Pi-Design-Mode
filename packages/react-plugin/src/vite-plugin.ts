@@ -35,11 +35,20 @@ export function piDesignVitePlugin(options: PiDesignViteOptions): Plugin {
     },
 
     transform(code: string, id: string) {
-      // Only transform TSX/JSX files
-      if (!id.endsWith(".tsx") && !id.endsWith(".jsx")) return null;
-
       // Skip node_modules
       if (id.includes("node_modules")) return null;
+
+      // Inject client script import into the app entry point (main.tsx/index.tsx)
+      if (/\/main\.(tsx|jsx|ts|js)$/.test(id) || /\/index\.(tsx|jsx)$/.test(id)) {
+        const clientImport = `import "${VIRTUAL_CLIENT_ID}";\n`;
+        return {
+          code: clientImport + code,
+          map: null,
+        };
+      }
+
+      // Transform TSX/JSX files with data-oid injection
+      if (!id.endsWith(".tsx") && !id.endsWith(".jsx")) return null;
 
       const result = injectDataOid(code, id, options.projectRoot);
 
@@ -47,18 +56,6 @@ export function piDesignVitePlugin(options: PiDesignViteOptions): Plugin {
         code: result,
         map: null, // TODO: generate source map
       };
-    },
-
-    transformIndexHtml(html) {
-      // Inject the client script into the HTML page
-      return [
-        {
-          tag: "script",
-          attrs: { type: "module" },
-          children: `import "${VIRTUAL_CLIENT_ID}";`,
-          injectTo: "head" as const,
-        },
-      ];
     },
   };
 }
