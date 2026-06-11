@@ -291,11 +291,14 @@ function createWidget(sendMessage) {
       processingEl.style.display = value ? "block" : "none";
       if (value) {
         // Stash submitted data-oids for post-edit flash
+        // (must survive setProcessing(false) call)
         submittedOids = selections.map(function(s) { return s.dataOid; });
       }
       if (!value) {
         for (var i = 0; i < selections.length; i++) { clearHighlight(selections[i].dataOid); }
         selections = [];
+        // Note: submittedOids intentionally NOT cleared here —
+        // flashEditedElements reads from it after setProcessing(false)
       }
       render();
     },
