@@ -165,6 +165,7 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
   let selections = [];
   let submittedOids = [];
   let isProcessing = false;
+let lastSelections = [];
 
   function persistSelections() {
     try {
@@ -426,6 +427,7 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
     input.value = "";
     input.style.height = "auto";
     isProcessing = true;
+    lastSelections = selections.slice(); // stash for Alt+R recall
     processingEl.style.display = "block";
     render();
   });
@@ -493,6 +495,15 @@ quickActions.addEventListener("click", function(e) {
 });  document.addEventListener("keydown", function(e) {
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
       clearAllSelections();
+    }
+    // Alt+R: recall last selection
+    if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && window.__piDesignWidget && selections.length === 0 && lastSelections.length > 0 && !isProcessing) {
+      e.preventDefault();
+      for (var i = 0; i < lastSelections.length; i++) {
+        var el = document.querySelector('[data-oid="' + CSS.escape(lastSelections[i].dataOid) + '"]');
+        if (!el) continue; // element removed by HMR
+        window.__piDesignWidget.addSelection(lastSelections[i]);
+      }
     }
   });
 
