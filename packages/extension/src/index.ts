@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { DesignModeServer } from "./server.js";
 import type { ClientMessage } from "./server.js";
-import { parseDataOid } from "../../react-plugin/src/data-oid.js";
+import { parseDataOid } from "./data-oid.js";
 import { inspectElement } from "./inspect.js";
 import { resolve } from "node:path";
 

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "@babel/parser";
 import traverse from "@babel/traverse";
-import { parseDataOid, type DataOidComponents } from "../../react-plugin/src/data-oid.js";
+import { parseDataOid, type DataOidComponents } from "./data-oid.js";
 
 export interface InspectResult {
   tagName: string;
