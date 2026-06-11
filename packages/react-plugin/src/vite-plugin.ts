@@ -67,6 +67,8 @@ const WS_PORT = ${wsPort};
 const HIGHLIGHT_STYLE_ID = "pi-design-highlight-style";
 const WIDGET_ID = "pi-design-widget";
 const SELECTION_COLORS = ["#f38ba8", "#a6e3a1", "#89b4fa", "#f9e2af", "#cba6f7", "#94e2d5", "#fab387", "#74c7ec"];
+var processingTimer = null;
+var errorBannerTimer = null;
 
 // --- parseDataOid (browser-safe, no crypto module) ---
 function parseDataOid(oid) {
@@ -142,8 +144,6 @@ const cancelBtn = shadow.querySelector(".cancel");
   let selections = [];
   let submittedOids = [];
   let isProcessing = false;
-let processingTimer = null;
-let errorBannerTimer = null;
 
   function persistSelections() {
     try {
