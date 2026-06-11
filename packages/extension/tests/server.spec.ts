@@ -254,4 +254,24 @@ describe("DesignModeServer", () => {
 
     ws2.close();
   });
+
+  it("calls onDisconnect when a client disconnects", async () => {
+    server = new DesignModeServer({ port: 9481 });
+    const port = await server.start();
+
+    const disconnects: number[] = [];
+    server.onDisconnect(() => { disconnects.push(server!.connectedClients()); });
+
+    const ws1 = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws1.on("open", resolve));
+    const ws2 = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws2.on("open", resolve));
+
+    ws1.close();
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    expect(disconnects).toHaveLength(1);
+    expect(disconnects[0]).toBe(1);
+
+    ws2.close();
+  });
 });
