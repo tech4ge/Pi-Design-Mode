@@ -114,6 +114,10 @@ function createWidget(sendMessage) {
     .processing .cancel { background: none; border: none; color: #f9e2af; cursor: pointer; text-decoration: underline; font-size: 12px; padding: 0; margin-left: 4px; }
     .error-banner { background: #45475a; color: #f38ba8; font-size: 12px; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
     .hint { color: #6c7086; font-size: 11px; margin-top: 6px; }
+    .quick-actions { display: none; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .qa-btn { background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
+    .qa-btn:hover { background: #45475a; border-color: #89b4fa; }
+    .qa-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   \`;
   const widget = document.createElement("div");
   widget.className = "widget";
@@ -124,6 +128,12 @@ function createWidget(sendMessage) {
     <div class="input-row">
       <textarea rows="1" placeholder="Describe the change..."></textarea>
       <button class="submit-btn">Submit</button>
+    </div>
+    <div class="quick-actions">
+      <button class="qa-btn" data-action="center">Center</button>
+      <button class="qa-btn" data-action="fullwidth">Full width</button>
+      <button class="qa-btn" data-action="equal-spacing" data-multi="true">Equal spacing</button>
+      <button class="qa-btn" data-action="same-size" data-multi="true">Same size</button>
     </div>
     <div class="processing" style="display:none">⏳ Processing...<button class="cancel" style="display:none">Cancel</button></div>
     <div class="hint">Alt+Click to select · Esc to clear</div>
@@ -140,6 +150,8 @@ function createWidget(sendMessage) {
 const errorBanner = shadow.querySelector(".error-banner");
 const errorMsg = shadow.querySelector(".error-msg");
 const cancelBtn = shadow.querySelector(".cancel");
+const quickActions = shadow.querySelector(".quick-actions");
+const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
 
   let selections = [];
   let submittedOids = [];
@@ -179,6 +191,10 @@ const cancelBtn = shadow.querySelector(".cancel");
     dot.title = sendMessage.isConnected() ? "Connected to Pi" : "Disconnected — changes won't be sent";
     submitBtn.disabled = selections.length === 0 || isProcessing;
     input.disabled = isProcessing;
+    quickActions.style.display = selections.length > 0 && !isProcessing ? "flex" : "none";
+    for (var m = 0; m < qaMultiBtns.length; m++) {
+      qaMultiBtns[m].style.display = selections.length >= 2 ? "" : "none";
+    }
     selectionsContainer.innerHTML = "";
     for (let i = 0; i < selections.length; i++) {
       let sel = selections[i];
@@ -398,7 +414,21 @@ cancelBtn.addEventListener("click", function() {
   render();
 });
 
-  document.addEventListener("keydown", function(e) {
+var qaInstructions = {
+  center: "Center these elements",
+  fullwidth: "Make these elements full width",
+  "equal-spacing": "Add equal spacing between these elements",
+  "same-size": "Make these elements the same size"
+};
+quickActions.addEventListener("click", function(e) {
+  var btn = e.target.closest(".qa-btn");
+  if (!btn || isProcessing) return;
+  var action = btn.getAttribute("data-action");
+  if (action && qaInstructions[action]) {
+    input.value = qaInstructions[action];
+    submitBtn.click();
+  }
+});  document.addEventListener("keydown", function(e) {
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
       clearAllSelections();
     }
