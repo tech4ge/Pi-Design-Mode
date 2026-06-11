@@ -1,7 +1,10 @@
-// Pi Design Mode — Client Entry for Next.js
+// Pi Design Mode — Browser Client
 //
-// Auto-initialises on import. Only activates in development.
-// Usage: import "@pi-design/react-plugin/client" in a client component.
+// Single source of truth for the browser client runtime.
+// Built by tsup to dist/browser-client.js as a self-executing IIFE.
+// Consumed by:
+//   - Vite: readFileSync('dist/browser-client.js') served as virtual module
+//   - Next.js: import "@pi-design/react-plugin/browser-client" (side-effect)
 
 if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   (window as any).__piDesignInit = true;
@@ -18,31 +21,35 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
   let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
 
-  document.addEventListener("keydown", (e) => { if (e.key === "Alt") isAltDown = true; });
-  document.addEventListener("keyup", (e) => { if (e.key === "Alt") { isAltDown = false; hideHoverTooltip(); } });
+  document.addEventListener("keydown", (e: KeyboardEvent) => { if (e.key === "Alt") isAltDown = true; });
+  document.addEventListener("keyup", (e: KeyboardEvent) => { if (e.key === "Alt") { isAltDown = false; hideHoverTooltip(); } });
   document.addEventListener("blur", () => { isAltDown = false; hideHoverTooltip(); });
 
-  // Resolve element by data-oid value — checks both data-oid and data-source attributes
+  // --- Core utilities ---
+
   function findByOid(value: string): Element | null {
     return document.querySelector(`[data-oid="${CSS.escape(value)}"]`) ||
            document.querySelector(`[data-source="${CSS.escape(value)}"]`);
   }
 
-  // --- Browser-safe parseDataOid ---
+  /** Parse all 3 OID formats into canonical components */
   function parseDataOid(oid: string) {
     // Babel/Vite: c:H:r:file:line:column
     const babelMatch = oid.match(/^([cef]):([0-9a-f]+):r:(.+):(\d+):(\d+)$/);
-    if (babelMatch) return { filePath: babelMatch[3], line: parseInt(babelMatch[4], 10), column: parseInt(babelMatch[5], 10) };
+    if (babelMatch) return { type: babelMatch[1], projectHash: babelMatch[2], filePath: babelMatch[3], line: parseInt(babelMatch[4], 10), column: parseInt(babelMatch[5], 10) };
     // SWC: file:line:column
     const swcFull = oid.match(/^(.+):(\d+):(\d+)$/);
-    if (swcFull) return { filePath: swcFull[1], line: parseInt(swcFull[2], 10), column: parseInt(swcFull[3], 10) };
+    if (swcFull) return { type: "c", projectHash: "", filePath: swcFull[1], line: parseInt(swcFull[2], 10), column: parseInt(swcFull[3], 10) };
     // SWC: file:line (swc-plugin-react-source-string)
     const swcLine = oid.match(/^(.+):(\d+)$/);
-    if (swcLine) return { filePath: swcLine[1], line: parseInt(swcLine[2], 10), column: 0 };
+    if (swcLine) return { type: "c", projectHash: "", filePath: swcLine[1], line: parseInt(swcLine[2], 10), column: 0 };
     return null;
   }
 
-  // --- Utility functions ---
+  function getSelector(element: Element): string {
+    if (element.id) return "#" + element.id;
+    return element.tagName.toLowerCase();
+  }
 
   function computeStructuralContext() {
     if (selections.length <= 1) return { siblings: [] as string[][], sameComponent: [] as string[][] };
@@ -129,12 +136,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   // --- WebSocket ---
 
   let ws: WebSocket | null = null;
-  const sendMessage = {
-    send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
-    isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; },
-  };
 
-  function connectWS() {
+  function connectWS(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     ws = new WebSocket(`ws://localhost:${WS_PORT}`);
     ws.onopen = () => {
       isConnected = true;
@@ -142,7 +145,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if ((window as any).__piDesignWidget) {
         (window as any).__piDesignWidget.updateConnection(true);
       } else {
-        createWidget();
+        createWidget(sendMessage);
       }
     };
     ws.onclose = () => {
@@ -151,17 +154,17 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         (window as any).__piDesignWidget.updateConnection(false);
         (window as any).__piDesignWidget.showError("Connection lost — will retry");
       }
-      setTimeout(connectWS, 2000);
+      setTimeout(() => connectWS(sendMessage), 2000);
     };
     ws.onerror = () => {};
     ws.onmessage = (event) => {
-      try { handleServerMessage(JSON.parse(event.data)); } catch {}
+      try { handleServerMessage(JSON.parse(event.data), sendMessage); } catch {}
     };
   }
 
-  function handleServerMessage(message: any) {
+  function handleServerMessage(message: any, sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     switch (message.type) {
-      case "design:mode:off": disconnect(); break;
+      case "design:mode:off": disconnect(sendMessage); break;
       case "design:highlight": highlightElement(message.dataOid); break;
       case "design:processing":
         if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.setProcessing(true);
@@ -210,10 +213,10 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
   }
 
-  function addSelection(sel: any) {
+  function addSelection(sel: any, sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     const existing = selections.findIndex((s) => s.dataOid === sel.dataOid);
     if (existing !== -1) {
-      removeSelection(sel.dataOid);
+      removeSelection(sel.dataOid, sendMessage);
       return false;
     }
     selections.push(sel);
@@ -223,7 +226,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     return true;
   }
 
-  function removeSelection(dataOid: string) {
+  function removeSelection(dataOid: string, sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     selections = selections.filter((s) => s.dataOid !== dataOid);
     clearHighlight(dataOid);
     sendMessage.send({ type: "design:deselect", dataOid });
@@ -232,7 +235,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     render();
   }
 
-  function clearAllSelections() {
+  function clearAllSelections(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     for (const sel of selections) clearHighlight(sel.dataOid);
     selections = [];
     sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
@@ -272,7 +275,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   let qaMultiBtns: NodeListOf<Element>;
   let hint: HTMLElement;
 
-  function createWidget() {
+  function createWidget(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     if (document.getElementById(WIDGET_ID)) return;
     widgetHost = document.createElement("div");
     widgetHost.id = WIDGET_ID;
@@ -360,7 +363,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     hint = shadow.querySelector(".hint")!;
 
     // Wire up events
-    closeBtn.addEventListener("click", () => disconnect());
+    closeBtn.addEventListener("click", () => disconnect(sendMessage));
 
     errorBanner.addEventListener("click", () => {
       errorBanner.style.display = "none";
@@ -435,9 +438,15 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
     // Expose widget API — must be set HERE so ws.onopen can detect creation
     (window as any).__piDesignWidget = {
-      addSelection,
-      removeSelection,
-      clearAllSelections,
+      addSelection(data: any) {
+        return addSelection(data, sendMessage);
+      },
+      removeSelection(dataOid: string) {
+        removeSelection(dataOid, sendMessage);
+      },
+      clearAllSelections() {
+        clearAllSelections(sendMessage);
+      },
       setProcessing(value: boolean) {
         isProcessing = value;
         processingEl.style.display = value ? "block" : "none";
@@ -476,8 +485,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   function render() {
     if (!shadow) return;
-    dot.className = "dot" + (sendMessage.isConnected() ? " connected" : "");
-    dot.title = sendMessage.isConnected() ? "Connected to Pi" : "Disconnected — changes won't be sent";
+    dot.className = "dot" + (isConnected ? " connected" : "");
+    dot.title = isConnected ? "Connected to Pi" : "Disconnected — changes won't be sent";
     submitBtn.disabled = selections.length === 0 || isProcessing;
     input.disabled = isProcessing;
     quickActions.style.display = selections.length > 0 && !isProcessing ? "flex" : "none";
@@ -493,7 +502,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       const item = document.createElement("div");
       item.className = "selection-item";
       item.innerHTML = `<span class="color-dot" style="background:${color}"></span><span class="tag">&lt;${escapeHtml(sel.tagName)}&gt;</span><span class="file">${escapeHtml(location)}</span><button class="remove" data-oid="${escapeHtml(sel.dataOid)}">×</button>`;
-      item.querySelector(".remove")!.addEventListener("click", (e) => { e.stopPropagation(); removeSelection(sel.dataOid); });
+      item.querySelector(".remove")!.addEventListener("click", (e) => { e.stopPropagation(); removeSelection(sel.dataOid, { send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); }, isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; } }); });
       item.addEventListener("click", () => flashElement(sel.dataOid));
       selectionsContainer.appendChild(item);
     }
@@ -607,23 +616,27 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   }
 
   // --- Alt+Click ---
-  document.addEventListener("click", (e) => {
+  function handleAltClick(e: MouseEvent) {
     if (!isAltDown) return;
     const target = (e.target as Element).closest("[data-oid],[data-source]");
     if (!target || (e.target as Element).closest(`#${WIDGET_ID}`)) return;
     e.preventDefault();
     e.stopPropagation();
-    const dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source")!;
+    const dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source");
     if (!dataOid) return;
+    const sendMessage = {
+      send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
+      isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; },
+    };
     const selectionData = {
       dataOid,
-      selector: target.tagName.toLowerCase(),
+      selector: getSelector(target),
       computedStyles: getComputedStyles(target),
       boundingBox: getBoundingBox(target),
       tagName: target.tagName.toLowerCase(),
       textContent: (target.textContent || "").slice(0, 200),
     };
-    const wasAdded = addSelection(selectionData);
+    const wasAdded = addSelection(selectionData, sendMessage);
     if (wasAdded && ws && isConnected) {
       sendMessage.send({
         type: "design:select",
@@ -635,7 +648,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         textContent: selectionData.textContent,
       });
     }
-  }, true);
+  }
+
+  document.addEventListener("click", handleAltClick as EventListener, true);
 
   // --- Alt+Hover ---
   document.addEventListener("mouseover", (e) => {
@@ -660,15 +675,19 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   // --- Escape + Alt+R ---
   document.addEventListener("keydown", (e) => {
+    const sendMessage = {
+      send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
+      isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; },
+    };
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
-      clearAllSelections();
+      clearAllSelections(sendMessage);
     }
     if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && (window as any).__piDesignWidget && selections.length === 0 && lastSelections.length > 0 && !isProcessing) {
       e.preventDefault();
       for (const sel of lastSelections) {
         const el = findByOid(sel.dataOid);
         if (!el) continue;
-        addSelection(sel);
+        addSelection(sel, sendMessage);
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         ((element: Element) => {
           (element as HTMLElement).style.outlineOffset = "6px";
@@ -679,7 +698,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   });
 
   // --- Disconnect ---
-  function disconnect() {
+  function disconnect(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       sendMessage.send({ type: "design:disconnect" });
     }
@@ -689,9 +708,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   }
 
   // --- Init ---
+  const sendMessage = {
+    send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
+    isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; },
+  };
+
   window.addEventListener("beforeunload", () => {
     if (ws && isConnected) sendMessage.send({ type: "design:disconnect" });
-    disconnect();
+    disconnect(sendMessage);
   });
-  connectWS();
+  connectWS(sendMessage);
 }

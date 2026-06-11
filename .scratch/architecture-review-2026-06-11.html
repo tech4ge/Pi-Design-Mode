@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review — pi-design-mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .drift-line { border-left: 3px solid #dc2626; padding-left: 12px; }
+      .candidate-card { scroll-margin-top: 80px; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+      <header class="space-y-4">
+        <h1 class="text-3xl font-bold tracking-tight">Architecture review — pi-design-mode</h1>
+        <p class="text-sm text-slate-500">2025-06-11 · 3 candidates</p>
+        <div class="flex gap-4 text-xs uppercase tracking-wider text-slate-500">
+          <span>■ solid box = module</span>
+          <span class="border-l border-slate-300 pl-4">┅ dashed line = seam</span>
+          <span class="border-l border-slate-300 pl-4"><span class="text-red-500">→</span> red = drift / leakage</span>
+          <span class="border-l border-slate-300 pl-4">■ dark box = deep module</span>
+        </div>
+      </header>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 1                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c1" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Collapse the browser client into one source of truth</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Strong</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">in-process</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/client.ts <span class="text-red-500 font-bold">(697 lines)</span></div>
+          <div>packages/react-plugin/src/vite-plugin.ts <span class="text-red-500 font-bold">generateClientScript() (720 lines as string)</span></div>
+        </div>
+
+        <!-- Before / After -->
+        <div class="grid grid-cols-2 gap-6">
+          <!-- Before -->
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before — two copies, different idioms</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm">
+              <div class="mermaid">
+                flowchart TD
+                  A["client.ts<br/><b>TypeScript module</b><br/>697 lines · imports · types"] --> WS["WS :9481"]
+                  B["vite-plugin.ts<br/><b>JS template string</b><br/>720 lines · no types · no imports"] --> WS2["WS :9481"]
+                  A -. "same logic<br/>different parseDataOid shape<br/>different restoreSelections guard<br/>missing ws.onerror" .-> B
+                  style A fill:#fef2f2,stroke:#dc2626
+                  style B fill:#fef2f2,stroke:#dc2626
+                  style WS fill:#f0fdf4,stroke:#16a34a
+                  style WS2 fill:#f0fdf4,stroke:#16a34a
+              </div>
+            </div>
+          </div>
+          <!-- After -->
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After — one source, two adapters</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm">
+              <div class="mermaid">
+                flowchart TD
+                  SRC["browser-client.ts<br/><b>One TypeScript source</b><br/>widget · selection · WS · tooltip"] --> BUILD["tsup / esbuild<br/>→ dist/browser-client.js"]
+                  BUILD --> VITE["vite-plugin.ts<br/><b>readFileSync()</b><br/>3 lines"]
+                  BUILD --> NEXT["next.tsx<br/><b>dynamic import()</b><br/>1 line"]
+                  VITE --> WS["WS :9481"]
+                  NEXT --> WS
+                  style SRC fill:#0f172a,stroke:#1e40af,color:#e2e8f0
+                  style BUILD fill:#f0fdf4,stroke:#16a34a
+                  style VITE fill:#f0fdf4,stroke:#16a34a
+                  style NEXT fill:#f0fdf4,stroke:#16a34a
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> Every bug fix or feature requires editing two copies in different idioms — TypeScript with imports vs JS string template without types. Already drifted: 5+ known behavioural differences.</p>
+        <p class="text-slate-700"><strong>Solution:</strong> Write the browser client once as TypeScript. Build it to JS with tsup/esbuild. Vite plugin reads the built file as a string for its virtual module. Next.js imports it as a normal module.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Locality:</strong> one place to fix bugs (currently 5+ drift bugs)</li>
+            <li><strong>Leverage:</strong> one source, two adapters (Vite + Next.js)</li>
+            <li><strong>Interface shrinks:</strong> vite-plugin.ts drops from 770 → ~80 lines</li>
+            <li><strong>Type safety:</strong> the built output was TypeScript-checked before stringification</li>
+            <li><strong>Delete ~720 lines</strong> of untyped, unlintable template string</li>
+          </ul>
+        </div>
+
+        <!-- Drift bugs detail -->
+        <div class="bg-red-50 rounded p-4 space-y-2">
+          <p class="text-xs uppercase tracking-wider text-red-800 font-semibold mb-2">Known drift bugs (would be eliminated)</p>
+          <div class="text-sm text-red-900 space-y-2">
+            <div class="drift-line"><code>parseDataOid()</code> in vite-plugin.ts only matches Babel format — SWC OIDs fail silently</div>
+            <div class="drift-line"><code>parseDataOid()</code> returns different keys: <code>marker</code> vs <code>type</code>, <code>relativeMarker</code> (extra field)</div>
+            <div class="drift-line"><code>restoreSelections()</code> in vite-plugin.ts missing <code>selections.length > 0</code> guard — can add duplicates</div>
+            <div class="drift-line">Missing <code>ws.onerror</code> handler in vite-plugin.ts</div>
+            <div class="drift-line">Dead <code>HIGHLIGHT_STYLE_ID</code> constant in vite-plugin.ts</div>
+            <div class="drift-line">Missing <code>data-source</code> support in vite-plugin.ts hover/tooltip DOM queries</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 2                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c2" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Unify <code>parseDataOid</code> into one canonical return type</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Strong</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">in-process</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/client.ts <span class="text-red-500">parseDataOid() → { filePath, line, column }</span></div>
+          <div>packages/react-plugin/src/vite-plugin.ts <span class="text-red-500">parseDataOid() → { marker, projectHash, relativeMarker, filePath, line, column }</span></div>
+          <div>packages/react-plugin/src/data-oid.ts <span class="text-red-500">parseDataOid() → { type, projectHash, filePath, line, column }</span></div>
+          <div>packages/extension/src/data-oid.ts <span class="text-slate-400">(same as above)</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before — three return shapes</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="space-y-3 font-mono text-xs">
+                <div class="bg-red-50 border border-red-200 rounded p-3">
+                  <div class="text-red-700 font-bold mb-1">client.ts</div>
+                  <div>{ filePath, line, column }</div>
+                  <div class="text-red-500 mt-1">// drops type + projectHash</div>
+                </div>
+                <div class="bg-red-50 border border-red-200 rounded p-3">
+                  <div class="text-red-700 font-bold mb-1">vite-plugin.ts</div>
+                  <div>{ marker, projectHash, relativeMarker, filePath, line, column }</div>
+                  <div class="text-red-500 mt-1">// different keys, extra field</div>
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded p-3">
+                  <div class="text-amber-700 font-bold mb-1">data-oid.ts (canonical)</div>
+                  <div>{ type, projectHash, filePath, line, column }</div>
+                  <div class="text-amber-600 mt-1">// full shape, but browser copies don't use it</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After — one canonical type</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="space-y-3 font-mono text-xs">
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-3">
+                  <div class="text-emerald-700 font-bold mb-1">data-oid.ts (single source)</div>
+                  <div>DataOidComponents { type, projectHash, filePath, line, column }</div>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-3">
+                  <div class="font-bold text-emerald-700 mb-1">Browser consumers</div>
+                  <div>const { filePath, line } = parseDataOid(oid)!</div>
+                  <div class="text-emerald-600 mt-1">// destructure what you need</div>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded p-3">
+                  <div class="font-bold text-emerald-700 mb-1">Server consumers</div>
+                  <div>const { filePath, line, column } = parseDataOid(oid)!</div>
+                  <div class="text-emerald-600 mt-1">// same type, different projection</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> Same function, three different return types. Renaming a field requires editing N copies and hoping consumers don't break.</p>
+        <p class="text-slate-700"><strong>Solution:</strong> One <code>parseDataOid</code> in <code>data-oid.ts</code> returning <code>DataOidComponents</code>. Browser code destructure-projects what it needs. If Candidate 1 is adopted, this unification is automatic — there's only one browser copy.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Locality:</strong> one parse function, one return type</li>
+            <li><strong>Delete 2 copies</strong> of parseDataOid with wrong/different shapes</li>
+            <li><strong>Eliminates key-name confusion:</strong> <code>marker</code> vs <code>type</code> vs nothing</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 3                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c3" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Consolidate <code>data-oid.ts</code> across packages</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">Worth exploring</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">in-process</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/data-oid.ts <span class="text-red-500">(66 lines, formatDataOid has latent bug)</span></div>
+          <div>packages/extension/src/data-oid.ts <span class="text-slate-400">(69 lines, correct conditional formatDataOid)</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="mermaid">
+                flowchart LR
+                  RP["react-plugin/<br/>data-oid.ts<br/><b>66 lines</b>"] -. "97% identical<br/>formatDataOid drift" .-> EXT["extension/<br/>data-oid.ts<br/><b>69 lines</b>"]
+                  style RP fill:#fef2f2,stroke:#dc2626
+                  style EXT fill:#fef2f2,stroke:#dc2626
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="mermaid">
+                flowchart LR
+                  SHARED["shared/<br/>data-oid.ts<br/><b>69 lines</b>"] --> RP["react-plugin/<br/>re-exports"]
+                  SHARED --> EXT["extension/<br/>re-exports"]
+                  style SHARED fill:#0f172a,stroke:#1e40af,color:#e2e8f0
+                  style RP fill:#f0fdf4,stroke:#16a34a
+                  style EXT fill:#f0fdf4,stroke:#16a34a
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> Two near-identical copies of <code>data-oid.ts</code>. Already drifted: <code>formatDataOid</code> in react-plugin has a latent bug (produces broken output when projectHash is empty).</p>
+        <p class="text-slate-700"><strong>Solution:</strong> Extract to a shared module. Both packages re-export. Or, if Candidate 1 is adopted first, the browser client no longer needs its own parseDataOid at all — it imports from data-oid.ts and the build step inlines it.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Locality:</strong> one formatDataOid, one parseDataOid, one hashProjectRoot</li>
+            <li><strong>Fixes latent bug:</strong> react-plugin's formatDataOid with empty projectHash</li>
+            <li><strong>Delete ~66 lines</strong> of duplicate code</li>
+          </ul>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded p-4">
+          <p class="text-sm text-amber-900"><strong>Note:</strong> If Candidate 1 is adopted, the Vite plugin's inlined parseDataOid disappears (replaced by the built output from the shared source). Candidate 3 becomes a smaller step: just move data-oid.ts to a shared location and re-export. Still worth doing, but lower priority.</p>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- TOP RECOMMENDATION                                                        -->
+      <!-- ========================================================================= -->
+      <section id="top-recommendation" class="space-y-4">
+        <h2 class="text-2xl font-bold">Top recommendation</h2>
+        <div class="bg-slate-900 text-white rounded-xl p-8 space-y-4">
+          <h3 class="text-xl font-bold text-emerald-300">Start with Candidate 1: Collapse the browser client</h3>
+          <p class="text-slate-300">It subsumes Candidates 2 and 3. When the browser client is one TypeScript source, there's one parseDataOid (fixing C2) and the vite-plugin.ts template string disappears (fixing 5 drift bugs at once). C3 (data-oid.ts across packages) is then a small follow-up — move the file to a shared location.</p>
+          <p class="text-slate-400 text-sm mt-4">The mechanism: write <code>client.ts</code> once. Build with tsup to <code>dist/browser-client.js</code>. Vite plugin reads the built file with <code>readFileSync()</code> and serves it as a virtual module. Next.js imports it as a normal ESM module via <code>next.tsx</code>. Both paths get the same TypeScript-checked, linted, IDE-navigable code.</p>
+          <p class="text-slate-400 text-sm"><a href="#c1" class="text-emerald-300 underline">Jump to Candidate 1 →</a></p>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>

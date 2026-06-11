@@ -60,25 +60,29 @@ describe("piDesignVitePlugin", () => {
 
     const result = load("\0virtual:pi-design-client");
     expect(result).not.toBeNull();
-    expect(result).toContain("WS_PORT = 9481");
-    expect(result).toContain("handleAltClick");
     expect(result).toContain("createWidget");
+    expect(result).toContain("findByOid");
+    expect(result).toContain("parseDataOid");
+    expect(result).toContain("handleAltClick");
+    expect(result).toContain("data-source");
   });
 
-  it("injects custom WS port into client script", () => {
-    const plugin = piDesignVitePlugin({ projectRoot: PROJECT_ROOT, wsPort: 5555 });
+  it("client script uses __PI_DESIGN_PORT for WS port", () => {
+    const plugin = piDesignVitePlugin({ projectRoot: PROJECT_ROOT });
     const load = plugin.load as unknown as (id: string) => string | null;
 
     const result = load("\0virtual:pi-design-client");
-    expect(result).toContain("WS_PORT = 5555");
+    expect(result).toContain("__PI_DESIGN_PORT");
+    expect(result).toContain("9481");
   });
 
-  it("client script does not contain node:crypto", () => {
+  it("client script does not contain node:crypto or require()", () => {
     const plugin = piDesignVitePlugin({ projectRoot: PROJECT_ROOT });
     const load = plugin.load as unknown as (id: string) => string | null;
 
     const result = load("\0virtual:pi-design-client");
     expect(result).not.toContain("node:crypto");
+    expect(result).not.toMatch(/require\s*\(/);
     expect(result).toContain("parseDataOid");
   });
 
