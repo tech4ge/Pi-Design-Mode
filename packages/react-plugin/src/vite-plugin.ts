@@ -88,7 +88,7 @@ function createWidget(sendMessage) {
   const style = document.createElement("style");
   style.textContent = \`
     :host { all: initial; font-family: system-ui, -apple-system, sans-serif; }
-    .widget { background: #1e1e2e; border: 1px solid #45475a; border-radius: 12px; padding: 12px; min-width: 300px; max-width: 420px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); color: #cdd6f4; font-size: 13px; transition: min-width 0.2s ease; }
+    .widget { background: #1e1e2e; border: 1px solid #45475a; border-radius: 12px; padding: 12px; min-width: 300px; max-width: 420px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); color: #cdd6f4; font-size: 13px; transition: min-width 0.2s ease; position: relative; }
     .widget.expanded { min-width: 380px; }
     .header { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
     .header .title { flex: 1; display: flex; align-items: center; gap: 6px; }
@@ -118,6 +118,12 @@ function createWidget(sendMessage) {
     .qa-btn { background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
     .qa-btn:hover { background: #45475a; border-color: #89b4fa; }
     .qa-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .history-dropdown { position: absolute; left: 0; right: 0; bottom: 100%; background: #1e1e2e; border: 1px solid #45475a; border-radius: 8px; max-height: 160px; overflow-y: auto; z-index: 10; margin-bottom: 4px; box-shadow: 0 -4px 16px rgba(0,0,0,0.3); }
+    .history-item { padding: 6px 10px; font-size: 12px; color: #cdd6f4; cursor: pointer; border-bottom: 1px solid #313244; }
+    .history-item:hover { background: #313244; }
+    .history-item:last-child { border-bottom: none; }
+    .history-clear { padding: 6px 10px; font-size: 11px; color: #f38ba8; cursor: pointer; text-align: center; border-top: 1px solid #45475a; }
+    .history-clear:hover { background: #313244; }
   \`;
   const widget = document.createElement("div");
   widget.className = "widget";
@@ -125,9 +131,10 @@ function createWidget(sendMessage) {
     <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Close design mode">✕</button></div>
     <div class="error-banner" style="display:none">⚠️ <span class="error-msg"></span></div>
     <div class="selections"></div>
-    <div class="input-row">
+    <div class="input-row" style="position:relative">
       <textarea rows="1" placeholder="Describe the change..."></textarea>
       <button class="submit-btn">Submit</button>
+      <div class="history-dropdown" style="display:none"></div>
     </div>
     <div class="quick-actions">
       <button class="qa-btn" data-action="center">Center</button>
@@ -150,6 +157,7 @@ function createWidget(sendMessage) {
   const processingEl = shadow.querySelector(".processing");
 const errorBanner = shadow.querySelector(".error-banner");
 const errorMsg = shadow.querySelector(".error-msg");
+const historyDropdown = shadow.querySelector(".history-dropdown");
 const cancelBtn = shadow.querySelector(".cancel");
 const quickActions = shadow.querySelector(".quick-actions");
 const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
@@ -185,6 +193,40 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
       if (selections.length > 0) render();
       persistSelections(); // re-persist with only valid entries
     } catch(e) {}
+  }
+
+  function getHistory() {
+    try {
+      var h = localStorage.getItem("pi-design-history");
+      return h ? JSON.parse(h) : [];
+    } catch(e) { return []; }
+  }
+
+  function saveHistory(instruction) {
+    if (!instruction.trim()) return;
+    var h = getHistory();
+    // Remove duplicate if exists, then prepend
+    h = h.filter(function(x) { return x !== instruction; });
+    h.unshift(instruction);
+    if (h.length > 20) h = h.slice(0, 20);
+    try { localStorage.setItem("pi-design-history", JSON.stringify(h)); } catch(e) {}
+  }
+
+  function showHistory() {
+    var h = getHistory();
+    if (h.length === 0 || input.value.length > 0) { historyDropdown.style.display = "none"; return; }
+    historyDropdown.innerHTML = "";
+    for (var i = 0; i < h.length; i++) {
+      var item = document.createElement("div");
+      item.className = "history-item";
+      item.textContent = h[i];
+      historyDropdown.appendChild(item);
+    }
+    var clearEl = document.createElement("div");
+    clearEl.className = "history-clear";
+    clearEl.textContent = "Clear history";
+    historyDropdown.appendChild(clearEl);
+    historyDropdown.style.display = "block";
   }
 
   function render() {
@@ -370,6 +412,7 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
     if (selections.length === 0 || isProcessing) return;
     var instruction = input.value.trim();
     if (!instruction) return;
+    saveHistory(instruction);
     var structuralContext = computeStructuralContext();
     sendMessage.send({
       type: "design:submit",
@@ -395,14 +438,28 @@ const qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitBtn.click(); }
   });
 
-  input.addEventListener("focus", function() { widget.classList.add("expanded"); });
-  input.addEventListener("blur", function() { widget.classList.remove("expanded"); });
+  input.addEventListener("focus", function() { widget.classList.add("expanded"); showHistory(); });
+  input.addEventListener("blur", function() { widget.classList.remove("expanded"); setTimeout(function() { historyDropdown.style.display = "none"; }, 200); });
 
   closeBtn.addEventListener("click", function() { disconnect(); });
 
 errorBanner.addEventListener("click", function() {
   errorBanner.style.display = "none";
   if (errorBannerTimer) clearTimeout(errorBannerTimer);
+});
+
+historyDropdown.addEventListener("mousedown", function(e) {
+  var item = e.target.closest(".history-item");
+  var clearEl = e.target.closest(".history-clear");
+  if (item) {
+    input.value = item.textContent;
+    historyDropdown.style.display = "none";
+    input.focus();
+  }
+  if (clearEl) {
+    try { localStorage.removeItem("pi-design-history"); } catch(e) {}
+    historyDropdown.style.display = "none";
+  }
 });
 
 cancelBtn.addEventListener("click", function() {
