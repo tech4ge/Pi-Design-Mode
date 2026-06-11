@@ -209,28 +209,49 @@ function createWidget(sendMessage) {
     render();
   }
 
+  var pendingFlash = false;
+  var flashFallbackTimer = null;
+
   function flashEditedElements() {
     if (submittedOids.length === 0) return;
-    // Wait 1500ms for HMR to re-render after Pi finishes editing files
-    setTimeout(function() {
-      var flashed = 0;
-      for (var i = 0; i < submittedOids.length; i++) {
-        var el = document.querySelector('[data-oid="' + CSS.escape(submittedOids[i]) + '"]');
-        if (el) {
-          flashed++;
-          el.style.outline = "2px solid #a6e3a1";
-          el.style.outlineOffset = "2px";
-          (function(element) {
-            setTimeout(function() {
-              element.style.outline = "";
-              element.style.outlineOffset = "";
-            }, 2000);
-          })(el);
-        }
+    pendingFlash = true;
+    // Listen for Vite HMR update — flash on the NEW elements after re-render
+    window.addEventListener("vite:afterUpdate", onHmrUpdate);
+    // Fallback: if no HMR fires within 3s (e.g. non-component edit), flash anyway
+    flashFallbackTimer = setTimeout(function() {
+      window.removeEventListener("vite:afterUpdate", onHmrUpdate);
+      doFlash();
+    }, 3000);
+  }
+
+  function onHmrUpdate() {
+    if (!pendingFlash) return;
+    // HMR fired — wait 300ms for React to re-render, then flash the new elements
+    setTimeout(function() { doFlash(); }, 300);
+    if (flashFallbackTimer) clearTimeout(flashFallbackTimer);
+    window.removeEventListener("vite:afterUpdate", onHmrUpdate);
+  }
+
+  function doFlash() {
+    if (!pendingFlash) return;
+    pendingFlash = false;
+    var flashed = 0;
+    for (var i = 0; i < submittedOids.length; i++) {
+      var el = document.querySelector('[data-oid="' + CSS.escape(submittedOids[i]) + '"]');
+      if (el) {
+        flashed++;
+        el.style.outline = "2px solid #a6e3a1";
+        el.style.outlineOffset = "2px";
+        (function(element) {
+          setTimeout(function() {
+            element.style.outline = "";
+            element.style.outlineOffset = "";
+          }, 2000);
+        })(el);
       }
-      console.log("[pi-design] Flash " + flashed + "/" + submittedOids.length + " elements");
-      submittedOids = [];
-    }, 1500);
+    }
+    console.log("[pi-design] Flashed " + flashed + "/" + submittedOids.length + " elements");
+    submittedOids = [];
   }
 
   function showSuccess() {

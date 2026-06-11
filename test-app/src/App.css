@@ -12,6 +12,21 @@
   &:hover {
     border-color: var(--accent-border);
   }
+
+  &.flash {
+    animation: btn-flash 0.3s ease-out;
+  }
+}
+
+@keyframes btn-flash {
+  0% {
+    filter: brightness(2.5);
+    transform: scale(1.08);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
   &:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
