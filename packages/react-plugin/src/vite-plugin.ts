@@ -113,6 +113,9 @@ function createWidget(sendMessage) {
     :host { all: initial; font-family: system-ui, -apple-system, sans-serif; }
     .widget { background: #1e1e2e; border: 1px solid #45475a; border-radius: 12px; padding: 12px; min-width: 280px; max-width: 360px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); color: #cdd6f4; font-size: 13px; }
     .header { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+    .header .title { flex: 1; display: flex; align-items: center; gap: 6px; }
+    .close-btn { background: none; border: none; color: #6c7086; cursor: pointer; padding: 2px 6px; font-size: 16px; border-radius: 4px; line-height: 1; }
+    .close-btn:hover { color: #cdd6f4; background: #313244; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #f38ba8; display: inline-block; }
     .dot.connected { background: #a6e3a1; }
     .selections { max-height: 120px; overflow-y: auto; margin-bottom: 8px; }
@@ -132,7 +135,7 @@ function createWidget(sendMessage) {
   const widget = document.createElement("div");
   widget.className = "widget";
   widget.innerHTML = \`
-    <div class="header"><span class="dot"></span> Pi Design Mode</div>
+    <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Clear selection">✕</button></div>
     <div class="selections"></div>
     <div class="input-row">
       <input type="text" placeholder="Describe the change..." />
@@ -145,6 +148,7 @@ function createWidget(sendMessage) {
   shadow.appendChild(widget);
 
   const dot = shadow.querySelector(".dot");
+  const closeBtn = shadow.querySelector(".close-btn");
   const selectionsContainer = shadow.querySelector(".selections");
   const input = shadow.querySelector("input");
   const submitBtn = shadow.querySelector(".submit-btn");
@@ -173,9 +177,25 @@ function createWidget(sendMessage) {
     }
   }
 
+  function clearHighlight(dataOid) {
+    var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+    if (el) el.classList.remove(HIGHLIGHT_CLASS);
+  }
+
   function removeSelection(dataOid) {
     selections = selections.filter(function(s) { return s.dataOid !== dataOid; });
+    clearHighlight(dataOid);
     sendMessage.send({ type: "design:deselect", dataOid: dataOid });
+    render();
+  }
+
+  function clearAllSelections() {
+    for (var i = 0; i < selections.length; i++) {
+      clearHighlight(selections[i].dataOid);
+    }
+    selections = [];
+    sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
+    removeHighlightStyle();
     render();
   }
 
@@ -198,12 +218,11 @@ function createWidget(sendMessage) {
     if (e.key === "Enter") submitBtn.click();
   });
 
+  closeBtn.addEventListener("click", function() { clearAllSelections(); });
+
   document.addEventListener("keydown", function(e) {
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
-      if (sendMessage.isConnected()) {
-        sendMessage.send({ type: "design:disconnect" });
-      }
-      destroyWidget();
+      clearAllSelections();
     }
   });
 
@@ -214,6 +233,7 @@ function createWidget(sendMessage) {
       render();
     },
     removeSelection: removeSelection,
+    clearAllSelections: clearAllSelections,
     setProcessing: function(value) {
       isProcessing = value;
       processingEl.style.display = value ? "block" : "none";

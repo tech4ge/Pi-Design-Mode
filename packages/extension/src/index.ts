@@ -182,9 +182,13 @@ export default function (pi: ExtensionAPI) {
       }
 
       case "design:deselect": {
-        currentSelection = currentSelection.filter(
-          (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
-        );
+        if (message.dataOid === "__all__") {
+          currentSelection = [];
+        } else {
+          currentSelection = currentSelection.filter(
+            (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
+          );
+        }
         updateWidget(ctx);
         break;
       }
