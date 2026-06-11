@@ -26,6 +26,7 @@ export class DesignModeServer {
   private clients: Set<WebSocket> = new Set();
   private actualPort: number = 0;
   private messageHandler: ((ws: WebSocket, message: ClientMessage) => void) | null = null;
+  private disconnectHandler: (() => void) | null = null;
 
   constructor(options: ServerOptions) {
     this.options = {
@@ -77,6 +78,7 @@ export class DesignModeServer {
 
       ws.on("close", () => {
         this.clients.delete(ws);
+        if (this.disconnectHandler) this.disconnectHandler();
       });
     });
   }
@@ -109,6 +111,10 @@ export class DesignModeServer {
 
   onMessage(handler: (ws: WebSocket, message: ClientMessage) => void): void {
     this.messageHandler = handler;
+  }
+
+  onDisconnect(handler: () => void): void {
+    this.disconnectHandler = handler;
   }
 
   broadcast(message: ServerMessage): void {

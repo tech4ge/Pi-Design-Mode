@@ -138,6 +138,11 @@ export default function (pi: ExtensionAPI) {
           handleMessage(message, ctx);
         });
 
+        server.onDisconnect(() => {
+          currentSelection = [];
+          updateWidget(ctx);
+        });
+
         ctx.ui.notify(`Design mode on — WS server on port ${port}`, "info");
       } catch (err) {
         ctx.ui.notify(`Failed to start design mode: ${err}`, "error");
