@@ -232,6 +232,7 @@ export default function (pi: ExtensionAPI) {
   // W3: Only send design:done when a design-triggered turn ends
   pi.on("turn_end", () => {
     if (server && designTurnInFlight) {
+      pi.ui.notify("Design changes complete", "info");
       server.broadcast({ type: "design:done" });
       designTurnInFlight = false;
     }

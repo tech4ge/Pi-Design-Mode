@@ -211,11 +211,13 @@ function createWidget(sendMessage) {
 
   function flashEditedElements() {
     if (submittedOids.length === 0) return;
-    // Wait 500ms for HMR to re-render
+    // Wait 1500ms for HMR to re-render after Pi finishes editing files
     setTimeout(function() {
+      var flashed = 0;
       for (var i = 0; i < submittedOids.length; i++) {
         var el = document.querySelector('[data-oid="' + CSS.escape(submittedOids[i]) + '"]');
         if (el) {
+          flashed++;
           el.style.outline = "2px solid #a6e3a1";
           el.style.outlineOffset = "2px";
           (function(element) {
@@ -226,8 +228,21 @@ function createWidget(sendMessage) {
           })(el);
         }
       }
+      console.log("[pi-design] Flash " + flashed + "/" + submittedOids.length + " elements");
       submittedOids = [];
-    }, 500);
+    }, 1500);
+  }
+
+  function showSuccess() {
+    var hint = shadow.querySelector(".hint");
+    if (hint) {
+      hint.textContent = "✓ Changes applied";
+      hint.style.color = "#a6e3a1";
+      setTimeout(function() {
+        hint.textContent = "Alt+Click to select · Esc to clear";
+        hint.style.color = "";
+      }, 3000);
+    }
   }
 
   function reapplyAllHighlights() {
@@ -304,6 +319,7 @@ function createWidget(sendMessage) {
     },
     isConnected: function() { return sendMessage.isConnected(); },
     flashEditedElements: flashEditedElements,
+    showSuccess: showSuccess,
     destroy: destroyWidget,
   };
   render();
@@ -352,6 +368,7 @@ function handleServerMessage(message) {
     case "design:done":
       if (window.__piDesignWidget) window.__piDesignWidget.setProcessing(false);
       if (window.__piDesignWidget) window.__piDesignWidget.flashEditedElements();
+      if (window.__piDesignWidget) window.__piDesignWidget.showSuccess();
       break;
   }
 }
