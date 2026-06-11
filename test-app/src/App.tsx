@@ -7,8 +7,15 @@ import './App.css'
 function App() {
   const [count, setCount] = useState(0)
 
+  const [shaking, setShaking] = useState(false)
+
+  const shake = () => {
+    setShaking(true)
+    setTimeout(() => setShaking(false), 400)
+  }
+
   return (
-    <>
+    <div className={shaking ? 'shake' : ''}>
       <section id="center">
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
@@ -24,8 +31,8 @@ function App() {
         <button
           type="button"
           className="counter"
-          onClick={() => setCount((count) => count + 10)}
-          onContextMenu={(e) => { e.preventDefault(); setCount((count) => count - 10) }}
+          onClick={() => { setCount((count) => count + 10); shake() }}
+          onContextMenu={(e) => { e.preventDefault(); setCount((count) => count - 10); shake() }}
         >
           Count is {count}
         </button>
@@ -116,7 +123,7 @@ function App() {
 
       <div className="ticks"></div>
       <section id="spacer"></section>
-    </>
+    </div>
   )
 }
 

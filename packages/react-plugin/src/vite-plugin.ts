@@ -221,12 +221,21 @@ function createWidget(sendMessage) {
         flashed++;
         el.style.outline = "2px solid #a6e3a1";
         el.style.outlineOffset = "2px";
-        (function(element) {
+        (function(element, oid, idx) {
           setTimeout(function() {
-            element.style.outline = "";
-            element.style.outlineOffset = "";
+            // After flash, re-apply selection color if still selected
+            var selIdx = -1;
+            for (var j = 0; j < selections.length; j++) {
+              if (selections[j].dataOid === oid) { selIdx = j; break; }
+            }
+            if (selIdx >= 0) {
+              applyHighlight(oid, SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
+            } else {
+              element.style.outline = "";
+              element.style.outlineOffset = "";
+            }
           }, 2000);
-        })(el);
+        })(el, submittedOids[i], i);
       }
     }
     console.log("[pi-design] Flashed " + flashed + "/" + submittedOids.length + " elements");
@@ -353,12 +362,12 @@ function createWidget(sendMessage) {
         // Stash submitted data-oids for post-edit flash
         // (must survive setProcessing(false) call)
         submittedOids = selections.map(function(s) { return s.dataOid; });
+        // Hide outlines during processing (clean screen), but keep selections
+        for (var i = 0; i < selections.length; i++) { clearHighlight(selections[i].dataOid); }
       }
       if (!value) {
-        for (var i = 0; i < selections.length; i++) { clearHighlight(selections[i].dataOid); }
-        selections = [];
-        // Note: submittedOids intentionally NOT cleared here —
-        // flashEditedElements reads from it after setProcessing(false)
+        // Re-apply outlines on the (possibly new) elements after HMR
+        reapplyAllHighlights();
       }
       render();
     },
