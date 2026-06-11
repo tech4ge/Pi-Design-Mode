@@ -1,6 +1,10 @@
 import { parse } from "@babel/parser";
-import traverse from "@babel/traverse";
-import generate from "@babel/generator";
+import _traverse from "@babel/traverse";
+import _generate from "@babel/generator";
+
+// @babel CJS/ESM interop
+const traverse = _traverse.default || _traverse;
+const generate = _generate.default || _generate;
 import { formatDataOid, hashProjectRoot } from "./data-oid.js";
 
 /**

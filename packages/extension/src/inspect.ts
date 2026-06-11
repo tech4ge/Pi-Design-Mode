@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { parse } from "@babel/parser";
-import traverse from "@babel/traverse";
+import _traverse from "@babel/traverse";
+
+const traverse = _traverse.default || _traverse;
 import { parseDataOid, type DataOidComponents } from "./data-oid.js";
 
 export interface InspectResult {

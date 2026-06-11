@@ -51,3 +51,4 @@ strictModeWhiteList:
   - ^git show\b
   - ^awk\b
   - ^git remote\b
+  - ^npm install\b

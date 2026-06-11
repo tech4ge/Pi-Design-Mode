@@ -2,12 +2,27 @@
   "name": "@pi-design/react-plugin",
   "version": "0.0.1",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./vite": "./src/vite-plugin.ts"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./vite": {
+      "import": "./dist/vite-plugin.js",
+      "types": "./dist/vite-plugin.d.ts"
+    },
+    "./data-oid": {
+      "import": "./dist/data-oid.js",
+      "types": "./dist/data-oid.d.ts"
+    },
+    "./transform": {
+      "import": "./dist/transform.js",
+      "types": "./dist/transform.d.ts"
+    }
   },
   "scripts": {
+    "build": "tsup",
     "test": "vitest run"
   },
   "dependencies": {
@@ -17,6 +32,8 @@
     "@babel/types": "^7.29.7"
   },
   "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
   },
