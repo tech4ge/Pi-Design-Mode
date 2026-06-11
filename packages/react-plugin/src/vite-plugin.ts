@@ -447,6 +447,15 @@ cancelBtn.addEventListener("click", function() {
     flashEditedElements: flashEditedElements,
     showSuccess: showSuccess,
 showError: showError,
+updateConnection: function(connected) {
+  isConnected = connected;
+  dot.className = "dot" + (connected ? " connected" : "");
+  dot.title = connected ? "Connected to Pi" : "Disconnected — changes won't be sent";
+  submitBtn.disabled = !connected || selections.length === 0 || isProcessing;
+  input.disabled = !connected || isProcessing;
+  if (connected && errorBanner) errorBanner.style.display = "none";
+  render();
+},
     destroy: destroyWidget,
   };
   render();
@@ -455,6 +464,8 @@ showError: showError,
 }
 
 function destroyWidget() {
+  if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
+  if (errorBannerTimer) { clearTimeout(errorBannerTimer); errorBannerTimer = null; }
   var host = document.getElementById(WIDGET_ID);
   if (host) host.remove();
   delete window.__piDesignWidget;
@@ -471,16 +482,24 @@ function connect() {
   ws.onopen = function() {
     isConnected = true;
     ws.send(JSON.stringify({ type: "design:connect", url: window.location.href, title: document.title }));
-    createWidget({
-      send: function(message) { if (ws && isConnected) ws.send(JSON.stringify(message)); },
-      isConnected: function() { return isConnected; },
-      parseDataOid: parseDataOid,
-    });
+    if (window.__piDesignWidget) {
+      // Reuse existing widget — update connection state and clear error
+      window.__piDesignWidget.updateConnection(true);
+    } else {
+      createWidget({
+        send: function(message) { if (ws && isConnected) ws.send(JSON.stringify(message)); },
+        isConnected: function() { return isConnected; },
+        parseDataOid: parseDataOid,
+      });
+    }
   };
   ws.onclose = function() {
     isConnected = false;
-    if (window.__piDesignWidget) window.__piDesignWidget.showError("Connection lost — will retry");
-    destroyWidget();
+    if (window.__piDesignWidget) {
+      // Keep widget alive — show disconnected state
+      window.__piDesignWidget.updateConnection(false);
+      window.__piDesignWidget.showError("Connection lost — will retry");
+    }
     setTimeout(connect, 2000);
   };
   ws.onmessage = function(event) {
