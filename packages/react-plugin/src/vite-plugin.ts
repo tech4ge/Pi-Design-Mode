@@ -60,38 +60,13 @@ export function piDesignVitePlugin(options: PiDesignViteOptions): Plugin {
   };
 }
 
-/**
- * parseDataOid inlined for the browser (avoids node:crypto dependency).
- * Only the parsing function is needed — hashing is server-side.
- */
-function parseDataOidBrowser(oid: string) {
-  const parts = oid.split(":");
-  if (parts.length !== 6 || parts[0] !== "c" || parts[2] !== "r") return null;
-  return {
-    marker: parts[0],
-    projectHash: parts[1],
-    relativeMarker: parts[2],
-    filePath: parts[3],
-    line: parseInt(parts[4], 10),
-    column: parseInt(parts[5], 10),
-  };
-}
-
-/**
- * Generate the browser client script as a self-contained module.
- *
- * This is inlined rather than imported because:
- * - data-oid.ts imports node:crypto (unavailable in browser)
- * - We need a single virtual module, not a tree of imports
- * - WS port is injected at build time
- */
 function generateClientScript(wsPort: number): string {
   return `
 // Pi Design Mode — Client Script (auto-generated)
 const WS_PORT = ${wsPort};
 const HIGHLIGHT_STYLE_ID = "pi-design-highlight-style";
-const HIGHLIGHT_CLASS = "pi-design-selected";
 const WIDGET_ID = "pi-design-widget";
+const SELECTION_COLORS = ["#f38ba8", "#a6e3a1", "#89b4fa", "#f9e2af", "#cba6f7", "#94e2d5", "#fab387", "#74c7ec"];
 
 // --- parseDataOid (browser-safe, no crypto module) ---
 function parseDataOid(oid) {
@@ -119,10 +94,13 @@ function createWidget(sendMessage) {
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #f38ba8; display: inline-block; }
     .dot.connected { background: #a6e3a1; }
     .selections { max-height: 120px; overflow-y: auto; margin-bottom: 8px; }
-    .selection-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #313244; border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
+    .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin-right: 3px; }
+    .selection-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #313244; border-radius: 6px; margin-bottom: 4px; font-size: 12px; cursor: pointer; transition: background 0.1s; }
+    .selection-item:hover { background: #45475a; }
     .selection-item .tag { color: #89b4fa; font-family: monospace; }
-    .selection-item .file { color: #a6adc8; flex: 1; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .selection-item .file { color: #a6adc8; flex: 1; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .selection-item .remove { background: none; border: none; color: #f38ba8; cursor: pointer; padding: 0 4px; font-size: 14px; }
+    .selection-item .remove:hover { color: #eba0ac; }
     .input-row { display: flex; gap: 6px; }
     .input-row input { flex: 1; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 6px 8px; color: #cdd6f4; font-size: 13px; outline: none; }
     .input-row input:focus { border-color: #89b4fa; }
@@ -142,7 +120,7 @@ function createWidget(sendMessage) {
       <button class="submit-btn">Submit</button>
     </div>
     <div class="processing" style="display:none">⏳ Processing...</div>
-    <div class="hint">Alt+Click to select · Esc to exit</div>
+    <div class="hint">Alt+Click to select · Esc to clear</div>
   \`;
   shadow.appendChild(style);
   shadow.appendChild(widget);
@@ -162,14 +140,17 @@ function createWidget(sendMessage) {
     submitBtn.disabled = selections.length === 0 || isProcessing;
     input.disabled = isProcessing;
     selectionsContainer.innerHTML = "";
-    for (const sel of selections) {
-      const item = document.createElement("div");
+    for (var i = 0; i < selections.length; i++) {
+      var sel = selections[i];
+      var color = SELECTION_COLORS[i % SELECTION_COLORS.length];
+      var item = document.createElement("div");
       item.className = "selection-item";
-      const parsed = sendMessage.parseDataOid(sel.dataOid);
-      const location = parsed ? parsed.filePath + ":" + parsed.line : sel.dataOid;
-      const escapeHtml = (s) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-      item.innerHTML = '<span class="tag">&lt;' + escapeHtml(sel.tagName) + '&gt;</span><span class="file">' + escapeHtml(location) + '</span><button class="remove" data-oid="' + escapeHtml(sel.dataOid) + '"">×</button>';
-      item.querySelector(".remove").addEventListener("click", function() { removeSelection(sel.dataOid); });
+      var parsed = sendMessage.parseDataOid(sel.dataOid);
+      var location = parsed ? parsed.filePath + ":" + parsed.line : sel.dataOid;
+      var escapeHtml = function(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
+      item.innerHTML = '<span class="color-dot" style="background:' + color + '"></span><span class="tag">&lt;' + escapeHtml(sel.tagName) + '&gt;</span><span class="file">' + escapeHtml(location) + '</span><button class="remove" data-oid="' + escapeHtml(sel.dataOid) + '">×</button>';
+      item.querySelector(".remove").addEventListener("click", function(e) { e.stopPropagation(); removeSelection(sel.dataOid); });
+      item.addEventListener("click", function() { flashElement(sel.dataOid); });
       selectionsContainer.appendChild(item);
     }
     if (selections.length === 0) {
@@ -177,15 +158,44 @@ function createWidget(sendMessage) {
     }
   }
 
+  function applyHighlight(dataOid, color) {
+    var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+    if (el) {
+      el.style.outline = "2px solid " + color;
+      el.style.outlineOffset = "2px";
+      el.setAttribute("data-pi-highlighted", "true");
+    }
+  }
+
   function clearHighlight(dataOid) {
     var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
-    if (el) el.classList.remove(HIGHLIGHT_CLASS);
+    if (el) {
+      el.style.outline = "";
+      el.style.outlineOffset = "";
+      el.removeAttribute("data-pi-highlighted");
+    }
+  }
+
+  function flashElement(dataOid) {
+    var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Pulse: grow outline offset then shrink back
+    var orig = el.style.outlineOffset;
+    el.style.transition = "outline-offset 0.15s ease";
+    el.style.outlineOffset = "8px";
+    setTimeout(function() {
+      el.style.outlineOffset = orig || "2px";
+      setTimeout(function() { el.style.transition = ""; }, 200);
+    }, 200);
   }
 
   function removeSelection(dataOid) {
     selections = selections.filter(function(s) { return s.dataOid !== dataOid; });
     clearHighlight(dataOid);
     sendMessage.send({ type: "design:deselect", dataOid: dataOid });
+    // Re-apply colors after removal (indices may shift)
+    reapplyAllHighlights();
     render();
   }
 
@@ -195,13 +205,25 @@ function createWidget(sendMessage) {
     }
     selections = [];
     sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
-    removeHighlightStyle();
     render();
+  }
+
+  function reapplyAllHighlights() {
+    // Clear all then re-apply with correct color indices
+    var highlighted = document.querySelectorAll("[data-pi-highlighted]");
+    for (var j = 0; j < highlighted.length; j++) {
+      highlighted[j].style.outline = "";
+      highlighted[j].style.outlineOffset = "";
+      highlighted[j].removeAttribute("data-pi-highlighted");
+    }
+    for (var i = 0; i < selections.length; i++) {
+      applyHighlight(selections[i].dataOid, SELECTION_COLORS[i % SELECTION_COLORS.length]);
+    }
   }
 
   submitBtn.addEventListener("click", function() {
     if (selections.length === 0 || isProcessing) return;
-    const instruction = input.value.trim();
+    var instruction = input.value.trim();
     if (!instruction) return;
     sendMessage.send({
       type: "design:submit",
@@ -230,6 +252,8 @@ function createWidget(sendMessage) {
     addSelection: function(data) {
       selections = selections.filter(function(s) { return s.dataOid !== data.dataOid; });
       selections.push(data);
+      var color = SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length];
+      applyHighlight(data.dataOid, color);
       render();
     },
     removeSelection: removeSelection,
@@ -237,7 +261,10 @@ function createWidget(sendMessage) {
     setProcessing: function(value) {
       isProcessing = value;
       processingEl.style.display = value ? "block" : "none";
-      if (!value) { selections = []; }
+      if (!value) {
+        for (var i = 0; i < selections.length; i++) { clearHighlight(selections[i].dataOid); }
+        selections = [];
+      }
       render();
     },
     isConnected: function() { return sendMessage.isConnected(); },
@@ -247,17 +274,17 @@ function createWidget(sendMessage) {
 }
 
 function destroyWidget() {
-  const host = document.getElementById(WIDGET_ID);
+  var host = document.getElementById(WIDGET_ID);
   if (host) host.remove();
   delete window.__piDesignWidget;
 }
 
 // --- Connection ---
-let ws = null;
-let isConnected = false;
+var ws = null;
+var isConnected = false;
 
 function connect() {
-  const url = "ws://localhost:" + WS_PORT;
+  var url = "ws://localhost:" + WS_PORT;
   ws = new WebSocket(url);
   ws.onopen = function() {
     isConnected = true;
@@ -294,7 +321,6 @@ function handleServerMessage(message) {
 function disconnect() {
   if (ws) { ws.onclose = null; ws.close(); ws = null; isConnected = false; }
   destroyWidget();
-  removeHighlightStyle();
 }
 
 // --- Element Selection ---
@@ -302,59 +328,46 @@ function handleAltClick(event) {
   if (!event.altKey) return;
   event.preventDefault();
   event.stopPropagation();
-  const target = event.target.closest("[data-oid]");
+  var target = event.target.closest("[data-oid]");
   if (!target) return;
-  const dataOid = target.getAttribute("data-oid");
+  var dataOid = target.getAttribute("data-oid");
   if (!dataOid) return;
-  const computedStyles = getComputedStyles(target);
-  const boundingBox = getBoundingBox(target);
-  const selector = getSelector(target);
-  highlightElement(dataOid);
-  const selectionData = { dataOid: dataOid, selector: selector, computedStyles: computedStyles, boundingBox: boundingBox, tagName: target.tagName.toLowerCase(), textContent: (target.textContent || "").slice(0, 200) };
-  if (ws && isConnected) ws.send(JSON.stringify({ type: "design:select", ...selectionData }));
+  var computedStyles = getComputedStyles(target);
+  var boundingBox = getBoundingBox(target);
+  var selector = getSelector(target);
+  var selectionData = { dataOid: dataOid, selector: selector, computedStyles: computedStyles, boundingBox: boundingBox, tagName: target.tagName.toLowerCase(), textContent: (target.textContent || "").slice(0, 200) };
+  if (ws && isConnected) ws.send(JSON.stringify({ type: "design:select", dataOid: selectionData.dataOid, selector: selectionData.selector, computedStyles: selectionData.computedStyles, boundingBox: selectionData.boundingBox, tagName: selectionData.tagName, textContent: selectionData.textContent }));
   if (window.__piDesignWidget) window.__piDesignWidget.addSelection(selectionData);
 }
 
 function getComputedStyles(element) {
-  const styles = window.getComputedStyle(element);
-  const relevant = ["background-color","color","font-size","font-family","padding","margin","border-radius","display","width","height","gap","flex-direction"];
-  const result = {};
-  for (const prop of relevant) result[prop] = styles.getPropertyValue(prop);
+  var styles = window.getComputedStyle(element);
+  var relevant = ["background-color","color","font-size","font-family","padding","margin","border-radius","display","width","height","gap","flex-direction"];
+  var result = {};
+  for (var i = 0; i < relevant.length; i++) result[relevant[i]] = styles.getPropertyValue(relevant[i]);
   return result;
 }
 
 function getBoundingBox(element) {
-  const rect = element.getBoundingClientRect();
+  var rect = element.getBoundingClientRect();
   return { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) };
 }
 
 function getSelector(element) {
   if (element.id) return "#" + element.id;
-  let selector = element.tagName.toLowerCase();
+  var selector = element.tagName.toLowerCase();
   if (element.className && typeof element.className === "string") selector += "." + element.className.trim().split(/\\s+/).join(".");
   return selector;
 }
 
-// --- Highlighting ---
+// --- Highlighting (server-triggered, single-color) ---
 function highlightElement(dataOid) {
-  injectHighlightStyle();
-  document.querySelectorAll("." + HIGHLIGHT_CLASS).forEach(function(el) { el.classList.remove(HIGHLIGHT_CLASS); });
-  const target = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
-  if (target) target.classList.add(HIGHLIGHT_CLASS);
-}
-
-function injectHighlightStyle() {
-  if (document.getElementById(HIGHLIGHT_STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = HIGHLIGHT_STYLE_ID;
-  style.textContent = "." + HIGHLIGHT_CLASS + " { outline: 2px solid #3b82f6 !important; outline-offset: 2px !important; }";
-  document.head.appendChild(style);
-}
-
-function removeHighlightStyle() {
-  var el = document.getElementById(HIGHLIGHT_STYLE_ID);
-  if (el) el.remove();
-  document.querySelectorAll("." + HIGHLIGHT_CLASS).forEach(function(el) { el.classList.remove(HIGHLIGHT_CLASS); });
+  var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+  if (el) {
+    el.style.outline = "2px solid #3b82f6";
+    el.style.outlineOffset = "2px";
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 }
 
 // --- Init ---
