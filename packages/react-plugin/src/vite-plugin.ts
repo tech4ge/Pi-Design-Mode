@@ -134,6 +134,7 @@ function createWidget(sendMessage) {
       <button class="qa-btn" data-action="fullwidth">Full width</button>
       <button class="qa-btn" data-action="equal-spacing" data-multi="true">Equal spacing</button>
       <button class="qa-btn" data-action="same-size" data-multi="true">Same size</button>
+      <button class="qa-btn" data-action="revert">Revert</button>
     </div>
     <div class="processing" style="display:none">⏳ Processing...<button class="cancel" style="display:none">Cancel</button></div>
     <div class="hint">Alt+Click to select · Esc to clear</div>
@@ -418,7 +419,8 @@ var qaInstructions = {
   center: "Center these elements",
   fullwidth: "Make these elements full width",
   "equal-spacing": "Add equal spacing between these elements",
-  "same-size": "Make these elements the same size"
+  "same-size": "Make these elements the same size",
+  revert: "Revert the design changes you just made"
 };
 quickActions.addEventListener("click", function(e) {
   var btn = e.target.closest(".qa-btn");
