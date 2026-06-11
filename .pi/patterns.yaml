@@ -1,0 +1,53 @@
+strictModeWhiteList:
+  - ^cd\b
+  - ^grep\b
+  - ^sed\b
+  - ^for\b
+  - ^do\b
+  - ^echo\b
+  - ^done\b
+  - ^head\b
+  - ^git add\b
+  - ^git commit\b
+  - ^spec=\$\(grep\b
+  - ^cat\b
+  - ^git checkout\b
+  - ^npx vitest\b
+  - ^tail\b
+  - ^npx tsc\b
+  - ^ls\b
+  - ^npx tsx\b
+  - ^find\b
+  - ^wc\b
+  - ^git merge\b
+  - ^git branch\b
+  - ^npx supabase\b
+  - ^python3\b
+  - ^if\b
+  - ^\}\b
+  - ^supabase\b
+  - ^mkdir\b
+  - ^mv\b
+  - ^rm\b
+  - ^rmdir\b
+  - ^git status\b
+  - ^ 2>&1\b
+  - ^//\b
+  - ^config\(\{\b
+  - ^const\b
+  - ^\(async\b
+  - ^console\.log\('VITD3\b
+  - ^let\b
+  - ^console\.log\('\b
+  - ^total\b
+  - ^\}\)\(\)\b
+  - ^ 2>&1 \| grep -v \b
+  - ^import\b
+  - ^ 2>&1 \| grep -E \b
+  - ^git stash\b
+  - ^git log\b
+  - ^supabase db query
+  - ^git pull\b
+  - ^git show\b
+  - ^awk\b
+  - ^git remote\b
