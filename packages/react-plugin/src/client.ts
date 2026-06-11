@@ -7,6 +7,9 @@
  * Injected as a virtual module by @pi-design/react-plugin.
  */
 
+import { parseDataOid } from "../data-oid.js";
+import { createWidget, destroyWidget } from "./widget.js";
+
 const WS_PORT = 9481;
 const HIGHLIGHT_STYLE_ID = "pi-design-highlight-style";
 const HIGHLIGHT_CLASS = "pi-design-selected";
@@ -27,11 +30,23 @@ function connect() {
       url: window.location.href,
       title: document.title,
     }));
+
+    // Create widget once connected
+    createWidget({
+      send: (message) => {
+        if (ws && isConnected) {
+          ws.send(JSON.stringify(message));
+        }
+      },
+      isConnected: () => isConnected,
+      parseDataOid,
+    });
   };
 
   ws.onclose = () => {
     isConnected = false;
-    // Auto-reconnect with exponential backoff
+    destroyWidget();
+    // Auto-reconnect with backoff
     setTimeout(connect, 2000);
   };
 
@@ -54,12 +69,12 @@ function handleServerMessage(message) {
       highlightElement(message.dataOid);
       break;
     case "design:processing":
-      if (typeof window.__piDesignWidget !== "undefined") {
+      if (window.__piDesignWidget) {
         window.__piDesignWidget.setProcessing(true);
       }
       break;
     case "design:done":
-      if (typeof window.__piDesignWidget !== "undefined") {
+      if (window.__piDesignWidget) {
         window.__piDesignWidget.setProcessing(false);
       }
       break;
@@ -73,6 +88,7 @@ function disconnect() {
     ws = null;
     isConnected = false;
   }
+  destroyWidget();
   removeHighlightStyle();
 }
 
@@ -98,17 +114,24 @@ function handleAltClick(event) {
   // Highlight the element
   highlightElement(dataOid);
 
+  const selectionData = {
+    dataOid,
+    selector,
+    computedStyles,
+    boundingBox,
+    tagName: target.tagName.toLowerCase(),
+    textContent: target.textContent?.slice(0, 200) ?? "",
+  };
+
   // Send to Pi
-  if (ws && isConnected) {
-    ws.send(JSON.stringify({
-      type: "design:select",
-      dataOid,
-      selector,
-      computedStyles,
-      boundingBox,
-      tagName: target.tagName.toLowerCase(),
-      textContent: target.textContent?.slice(0, 200) ?? "",
-    }));
+  ws.send(JSON.stringify({
+    type: "design:select",
+    ...selectionData,
+  }));
+
+  // Update widget
+  if (window.__piDesignWidget) {
+    window.__piDesignWidget.addSelection(selectionData);
   }
 }
 
