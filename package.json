@@ -1,0 +1,7 @@
+{
+  "name": "pi-design-mode",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}
