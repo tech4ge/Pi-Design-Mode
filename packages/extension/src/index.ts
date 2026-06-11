@@ -186,10 +186,12 @@ export default function (pi: ExtensionAPI) {
 
       case "design:submit": {
         const selections = currentSelection.filter((s) => s.type === "design:select");
+        const cwd = (ctx as any).cwd || process.cwd();
         let content = `🎨 Design Mode\n\n`;
         for (const sel of selections) {
           const parsed = parseDataOid(sel.dataOid);
-          const location = parsed ? `${parsed.filePath}:${parsed.line}` : sel.dataOid;
+          const filePath = parsed ? resolve(cwd, parsed.filePath) : undefined;
+          const location = filePath ? `${filePath}:${parsed.line}` : sel.dataOid;
           content += `Selected: <${sel.tagName}> at ${location}\n`;
           content += `Styles: ${Object.entries(sel.computedStyles).map(([k, v]) => `${k}: ${v}`).join(", ")}\n`;
           content += `Position: ${sel.boundingBox.x},${sel.boundingBox.y} (${sel.boundingBox.width}×${sel.boundingBox.height})\n\n`;
@@ -199,14 +201,14 @@ export default function (pi: ExtensionAPI) {
           if (message.structuralContext.siblings.length > 0) {
             content += `Sibling groups (elements sharing the same parent):\n`;
             for (const group of message.structuralContext.siblings) {
-              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${p.filePath}:${p.line}` : oid; });
+              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid; });
               content += `  - ${locs.join(", ")}\n`;
             }
           }
           if (message.structuralContext.sameComponent.length > 0) {
             content += `Same component groups (elements from the same file):\n`;
             for (const group of message.structuralContext.sameComponent) {
-              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${p.filePath}:${p.line}` : oid; });
+              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid; });
               content += `  - ${locs.join(", ")}\n`;
             }
           }
