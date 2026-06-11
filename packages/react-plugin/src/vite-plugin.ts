@@ -260,19 +260,19 @@ function createWidget(sendMessage) {
   function computeStructuralContext() {
     if (selections.length <= 1) return { siblings: [], sameComponent: [] };
     var oids = selections.map(function(s) { return s.dataOid; });
-    // Group by parent element (siblings)
-    var parentMap = {};
+    // Group by parent element (siblings) — use Map with DOM reference as key
+    var parentMap = new Map();
     for (var i = 0; i < oids.length; i++) {
       var el = document.querySelector('[data-oid="' + CSS.escape(oids[i]) + '"]');
-      var parentKey = el && el.parentElement ? el.parentElement.tagName + ":" + Array.prototype.indexOf.call(el.parentElement.children, el) : "none:" + i;
-      if (!parentMap[parentKey]) parentMap[parentKey] = [];
-      parentMap[parentKey].push(oids[i]);
+      if (el && el.parentElement) {
+        if (!parentMap.has(el.parentElement)) parentMap.set(el.parentElement, []);
+        parentMap.get(el.parentElement).push(oids[i]);
+      }
     }
     var siblings = [];
-    var keys = Object.keys(parentMap);
-    for (var k = 0; k < keys.length; k++) {
-      if (parentMap[keys[k]].length > 1) siblings.push(parentMap[keys[k]]);
-    }
+    parentMap.forEach(function(group) {
+      if (group.length > 1) siblings.push(group);
+    });
     // Group by file path (sameComponent)
     var fileMap = {};
     for (var j = 0; j < oids.length; j++) {
