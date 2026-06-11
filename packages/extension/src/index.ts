@@ -250,9 +250,18 @@ export default function (pi: ExtensionAPI) {
 
   // Fire design:done when the full agent run completes (all turns),
   // not after each individual turn — Pi may take multiple turns
-  pi.on("agent_end", () => {
+  pi.on("agent_end", (event) => {
     if (server && designTurnInFlight) {
-      server.broadcast({ type: "design:done" });
+      // Check if the agent ended with errors
+      const msgs = event.messages || [];
+      const hasError = msgs.some((m: any) =>
+        m.role === "toolResult" && m.isError
+      );
+      if (hasError) {
+        server.broadcast({ type: "design:error", message: "Pi encountered an error while processing your design changes" });
+      } else {
+        server.broadcast({ type: "design:done" });
+      }
       designTurnInFlight = false;
     }
   });

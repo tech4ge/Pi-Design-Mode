@@ -17,7 +17,8 @@ type ServerMessage =
   | { type: "design:mode:off" }
   | { type: "design:highlight"; dataOid: string }
   | { type: "design:processing" }
-  | { type: "design:done" };
+  | { type: "design:done" }
+| { type: "design:error"; message: string };
 
 export class DesignModeServer {
   private options: Required<ServerOptions>;

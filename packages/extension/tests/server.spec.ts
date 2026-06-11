@@ -100,6 +100,26 @@ describe("DesignModeServer", () => {
     ws2.close();
   });
 
+  it("broadcasts design:error messages", async () => {
+    server = new DesignModeServer({ port: 9482 });
+    const port = await server.start();
+
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.on("open", resolve));
+
+    const received: string[] = [];
+    ws.on("message", (raw) => received.push(raw.toString()));
+
+    server!.broadcast({ type: "design:error", message: "Something went wrong" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+    expect(received).toHaveLength(1);
+    const parsed = JSON.parse(received[0]);
+    expect(parsed.type).toBe("design:error");
+    expect(parsed.message).toBe("Something went wrong");
+    ws.close();
+  });
+
   it("processes design:select messages with element data", async () => {
     server = new DesignModeServer({ port: 9481 });
     const port = await server.start();

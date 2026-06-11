@@ -109,18 +109,21 @@ function createWidget(sendMessage) {
     .submit-btn:hover { background: #b4d0fb; }
     .submit-btn:disabled { background: #45475a; color: #6c7086; cursor: not-allowed; }
     .processing { color: #f9e2af; font-size: 12px; text-align: center; margin-top: 6px; }
+    .processing .cancel { background: none; border: none; color: #f9e2af; cursor: pointer; text-decoration: underline; font-size: 12px; padding: 0; margin-left: 4px; }
+    .error-banner { background: #45475a; color: #f38ba8; font-size: 12px; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
     .hint { color: #6c7086; font-size: 11px; margin-top: 6px; }
   \`;
   const widget = document.createElement("div");
   widget.className = "widget";
   widget.innerHTML = \`
     <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Clear selection">✕</button></div>
+    <div class="error-banner" style="display:none">⚠️ <span class="error-msg"></span></div>
     <div class="selections"></div>
     <div class="input-row">
       <textarea rows="1" placeholder="Describe the change..."></textarea>
       <button class="submit-btn">Submit</button>
     </div>
-    <div class="processing" style="display:none">⏳ Processing...</div>
+    <div class="processing" style="display:none">⏳ Processing...<button class="cancel" style="display:none">Cancel</button></div>
     <div class="hint">Alt+Click to select · Esc to clear</div>
   \`;
   shadow.appendChild(style);
@@ -132,10 +135,15 @@ function createWidget(sendMessage) {
   const input = shadow.querySelector("textarea");
   const submitBtn = shadow.querySelector(".submit-btn");
   const processingEl = shadow.querySelector(".processing");
+const errorBanner = shadow.querySelector(".error-banner");
+const errorMsg = shadow.querySelector(".error-msg");
+const cancelBtn = shadow.querySelector(".cancel");
 
   let selections = [];
   let submittedOids = [];
   let isProcessing = false;
+let processingTimer = null;
+let errorBannerTimer = null;
 
   function persistSelections() {
     try {
@@ -168,6 +176,7 @@ function createWidget(sendMessage) {
 
   function render() {
     dot.className = "dot" + (sendMessage.isConnected() ? " connected" : "");
+    dot.title = sendMessage.isConnected() ? "Connected to Pi" : "Disconnected — changes won't be sent";
     submitBtn.disabled = selections.length === 0 || isProcessing;
     input.disabled = isProcessing;
     selectionsContainer.innerHTML = "";
@@ -285,6 +294,16 @@ function createWidget(sendMessage) {
     }
   }
 
+  function showError(message) {
+    if (!errorBanner || !errorMsg) return;
+    errorMsg.textContent = message;
+    errorBanner.style.display = "flex";
+    if (errorBannerTimer) clearTimeout(errorBannerTimer);
+    errorBannerTimer = setTimeout(function() {
+      errorBanner.style.display = "none";
+    }, 10000);
+  }
+
   function reapplyAllHighlights() {
     // Clear all then re-apply with correct color indices
     var highlighted = document.querySelectorAll("[data-pi-highlighted]");
@@ -364,6 +383,21 @@ function createWidget(sendMessage) {
 
   closeBtn.addEventListener("click", function() { clearAllSelections(); });
 
+errorBanner.addEventListener("click", function() {
+  errorBanner.style.display = "none";
+  if (errorBannerTimer) clearTimeout(errorBannerTimer);
+});
+
+cancelBtn.addEventListener("click", function() {
+  sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
+  isProcessing = false;
+  processingEl.style.display = "none";
+  cancelBtn.style.display = "none";
+  if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
+  reapplyAllHighlights();
+  render();
+});
+
   document.addEventListener("keydown", function(e) {
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
       clearAllSelections();
@@ -390,12 +424,18 @@ function createWidget(sendMessage) {
     setProcessing: function(value) {
       isProcessing = value;
       processingEl.style.display = value ? "block" : "none";
+      cancelBtn.style.display = "none";
+      if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
       if (value) {
         // Stash submitted data-oids for post-edit flash
         // (must survive setProcessing(false) call)
         submittedOids = selections.map(function(s) { return s.dataOid; });
         // Hide outlines during processing (clean screen), but keep selections
         for (var i = 0; i < selections.length; i++) { clearHighlight(selections[i].dataOid); }
+        // Show cancel button after 60s if still processing
+        processingTimer = setTimeout(function() {
+          if (isProcessing) cancelBtn.style.display = "inline";
+        }, 60000);
       }
       if (!value) {
         // Re-apply outlines on the (possibly new) elements after HMR
@@ -406,6 +446,7 @@ function createWidget(sendMessage) {
     isConnected: function() { return sendMessage.isConnected(); },
     flashEditedElements: flashEditedElements,
     showSuccess: showSuccess,
+showError: showError,
     destroy: destroyWidget,
   };
   render();
@@ -438,6 +479,7 @@ function connect() {
   };
   ws.onclose = function() {
     isConnected = false;
+    if (window.__piDesignWidget) window.__piDesignWidget.showError("Connection lost — will retry");
     destroyWidget();
     setTimeout(connect, 2000);
   };
@@ -457,6 +499,10 @@ function handleServerMessage(message) {
       if (window.__piDesignWidget) window.__piDesignWidget.setProcessing(false);
       if (window.__piDesignWidget) window.__piDesignWidget.flashEditedElements();
       if (window.__piDesignWidget) window.__piDesignWidget.showSuccess();
+      break;
+    case "design:error":
+      if (window.__piDesignWidget) window.__piDesignWidget.setProcessing(false);
+      if (window.__piDesignWidget) window.__piDesignWidget.showError(message.message || "Unknown error");
       break;
   }
 }
