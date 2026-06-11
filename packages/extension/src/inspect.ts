@@ -57,13 +57,24 @@ function extractElementInfo(
       const tagName = getTagName(path.node);
       const props = extractProps(path.node);
 
-      // Find parent component name
+      // Find parent component name (supports function declarations and arrow function variable declarations)
       const parentFunc = path.findParent((p) =>
         p.isFunctionDeclaration() || p.isArrowFunctionExpression() || p.isFunctionExpression(),
       );
-      const parentComponent = parentFunc?.isFunctionDeclaration()
-        ? (parentFunc.node.id?.name ?? undefined)
-        : undefined;
+
+      let parentComponent: string | undefined;
+      if (parentFunc?.isFunctionDeclaration()) {
+        parentComponent = parentFunc.node.id?.name ?? undefined;
+      } else if (parentFunc?.isArrowFunctionExpression() || parentFunc?.isFunctionExpression()) {
+        // const MyComp = () => { ... }
+        const varDeclarator = parentFunc.findParent((p) => p.isVariableDeclarator());
+        if (varDeclarator?.isVariableDeclarator()) {
+          const id = varDeclarator.node.id;
+          if (id.type === "Identifier") {
+            parentComponent = id.name;
+          }
+        }
+      }
 
       // Find text content
       const textContent = extractTextContent(path);

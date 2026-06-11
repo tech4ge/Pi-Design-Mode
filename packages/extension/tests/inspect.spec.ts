@@ -18,6 +18,13 @@ export function Header() {
   );
 }
 `);
+
+  writeFileSync(join(FIXTURE_DIR, "Arrow.tsx"), `const Button = (props) => {
+  return <button className="btn">{props.label}</button>;
+};
+
+export default Button;
+`);
 });
 
 afterAll(() => {
@@ -65,5 +72,17 @@ describe("inspectElement", () => {
     });
 
     expect(result).toBeNull();
+  });
+
+  it("extracts parentComponent from arrow function variable declaration", async () => {
+    const result = await inspectElement({
+      dataOid: `c:abc12345:r:Arrow.tsx:2:10`,
+      filePath: join(FIXTURE_DIR, "Arrow.tsx"),
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.parentComponent).toBe("Button");
+    expect(result!.tagName).toBe("button");
+    expect(result!.props).toMatchObject({ className: "btn" });
   });
 });

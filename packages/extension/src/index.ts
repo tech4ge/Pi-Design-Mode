@@ -10,22 +10,32 @@ export default function (pi: ExtensionAPI) {
   let server: DesignModeServer | undefined;
   let currentSelection: ClientMessage[] = [];
   let designModeActive = false;
+  let designTurnInFlight = false;
 
-  // --- design_inspect tool ---
+  // --- design_inspect tool (always registered, but guarded by designModeActive) ---
 
   pi.registerTool({
     name: "design_inspect",
     label: "Inspect UI Element",
-    description: "Inspect a React component in the running app. Returns component name, source file, props, and layout info. Use when the user has selected an element in design mode or when you need to inspect a specific component.",
+    description: "Inspect a React component in the running app. Returns component name, source file, props, and layout info. Only available when design mode is active. Use when the user has selected an element in design mode or when you need to inspect a specific component.",
     promptSnippet: "Inspect React UI elements for design changes",
     promptGuidelines: [
       "Use design_inspect when the user has submitted a design change and you need element details.",
       "design_inspect requires a dataOid parameter — use the dataOid from the design-mode selection message.",
+      "design_inspect only works when design mode is active — suggest running /design first if needed.",
     ],
     parameters: Type.Object({
       dataOid: Type.String({ description: "The data-oid attribute value of the element to inspect" }),
     }),
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (!designModeActive || !server) {
+        return {
+          content: [{ type: "text", text: "Design mode is not active. Run /design to start design mode first." }],
+          details: {},
+          isError: true,
+        };
+      }
+
       const parsed = parseDataOid(params.dataOid);
       if (!parsed) {
         return {
@@ -36,7 +46,7 @@ export default function (pi: ExtensionAPI) {
       }
 
       // Highlight the element in the browser
-      server?.broadcast({ type: "design:highlight", dataOid: params.dataOid });
+      server.broadcast({ type: "design:highlight", dataOid: params.dataOid });
 
       // Find element info from prior selection messages
       const priorSelect = currentSelection.find(
@@ -140,9 +150,13 @@ export default function (pi: ExtensionAPI) {
 
   function handleMessage(message: ClientMessage, ctx: any) {
     switch (message.type) {
-      case "design:connect":
+      case "design:connect": {
+        // W1: Send design:mode:on back to client with actual port
+        const port = server?.getPort();
+        server?.broadcast({ type: "design:mode:on", wsPort: port });
         updateWidget(ctx);
         break;
+      }
 
       case "design:select": {
         currentSelection = currentSelection.filter(
@@ -187,6 +201,7 @@ export default function (pi: ExtensionAPI) {
         }
         content += `Instruction: ${message.instruction}`;
 
+        designTurnInFlight = true; // W3: Track design-triggered turns
         pi.sendMessage({
           customType: "design-mode-submit",
           content,
@@ -210,9 +225,11 @@ export default function (pi: ExtensionAPI) {
 
   // --- Lifecycle ---
 
+  // W3: Only send design:done when a design-triggered turn ends
   pi.on("turn_end", () => {
-    if (server) {
+    if (server && designTurnInFlight) {
       server.broadcast({ type: "design:done" });
+      designTurnInFlight = false;
     }
   });
 
