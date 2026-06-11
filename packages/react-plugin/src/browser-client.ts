@@ -39,10 +39,10 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (babelMatch) return { type: babelMatch[1], projectHash: babelMatch[2], filePath: babelMatch[3], line: parseInt(babelMatch[4], 10), column: parseInt(babelMatch[5], 10) };
     // SWC: file:line:column
     const swcFull = oid.match(/^(.+):(\d+):(\d+)$/);
-    if (swcFull) return { type: "", projectHash: "", filePath: swcFull[1], line: parseInt(swcFull[2], 10), column: parseInt(swcFull[3], 10) };
+    if (swcFull) return { type: "c", projectHash: "", filePath: swcFull[1], line: parseInt(swcFull[2], 10), column: parseInt(swcFull[3], 10) };
     // SWC: file:line (swc-plugin-react-source-string)
     const swcLine = oid.match(/^(.+):(\d+)$/);
-    if (swcLine) return { type: "", projectHash: "", filePath: swcLine[1], line: parseInt(swcLine[2], 10), column: 0 };
+    if (swcLine) return { type: "c", projectHash: "", filePath: swcLine[1], line: parseInt(swcLine[2], 10), column: 0 };
     return null;
   }
 
@@ -622,7 +622,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (!target || (e.target as Element).closest(`#${WIDGET_ID}`)) return;
     e.preventDefault();
     e.stopPropagation();
-    const dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source")!;
+    const dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source");
     if (!dataOid) return;
     const sendMessage = {
       send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
