@@ -69,6 +69,9 @@ const WIDGET_ID = "pi-design-widget";
 const SELECTION_COLORS = ["#f38ba8", "#a6e3a1", "#89b4fa", "#f9e2af", "#cba6f7", "#94e2d5", "#fab387", "#74c7ec"];
 var processingTimer = null;
 var errorBannerTimer = null;
+function findByOid(value) {
+  return document.querySelector('[data-oid="' + CSS.escape(value) + '"]') || document.querySelector('[data-source="' + CSS.escape(value) + '"]');
+}
 
 // --- parseDataOid (browser-safe, no crypto module) ---
 function parseDataOid(oid) {
@@ -185,7 +188,7 @@ let lastSelections = [];
       if (!Array.isArray(parsed)) return;
       for (var i = 0; i < parsed.length; i++) {
         var s = parsed[i];
-        var el = document.querySelector('[data-oid="' + CSS.escape(s.dataOid) + '"]');
+        var el = findByOid(s.dataOid);
         if (!el) continue; // skip elements no longer in DOM
         if (selections.findIndex(function(x) { return x.dataOid === s.dataOid; }) >= 0) continue; // already selected
         selections.push(s);
@@ -262,7 +265,7 @@ let lastSelections = [];
   }
 
   function applyHighlight(dataOid, color) {
-    var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+    var el = findByOid(dataOid);
     if (el) {
       el.style.outline = "2px solid " + color;
       el.style.outlineOffset = "2px";
@@ -271,7 +274,7 @@ let lastSelections = [];
   }
 
   function clearHighlight(dataOid) {
-    var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+    var el = findByOid(dataOid);
     if (el) {
       el.style.outline = "";
       el.style.outlineOffset = "";
@@ -280,7 +283,7 @@ let lastSelections = [];
   }
 
   function flashElement(dataOid) {
-    var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+    var el = findByOid(dataOid);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     // Pulse: grow outline offset then shrink back
@@ -319,7 +322,7 @@ let lastSelections = [];
     // Flash the new elements immediately.
     var flashed = 0;
     for (var i = 0; i < submittedOids.length; i++) {
-      var el = document.querySelector('[data-oid="' + CSS.escape(submittedOids[i]) + '"]');
+      var el = findByOid(submittedOids[i]);
       if (el) {
         flashed++;
         el.style.outline = "2px solid #a6e3a1";
@@ -386,7 +389,7 @@ let lastSelections = [];
     // Group by parent element (siblings) — use Map with DOM reference as key
     var parentMap = new Map();
     for (var i = 0; i < oids.length; i++) {
-      var el = document.querySelector('[data-oid="' + CSS.escape(oids[i]) + '"]');
+      var el = findByOid(oids[i]);
       if (el && el.parentElement) {
         if (!parentMap.has(el.parentElement)) parentMap.set(el.parentElement, []);
         parentMap.get(el.parentElement).push(oids[i]);
@@ -500,7 +503,7 @@ quickActions.addEventListener("click", function(e) {
     if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && window.__piDesignWidget && selections.length === 0 && lastSelections.length > 0 && !isProcessing) {
       e.preventDefault();
       for (var i = 0; i < lastSelections.length; i++) {
-        var el = document.querySelector('[data-oid="' + CSS.escape(lastSelections[i].dataOid) + '"]');
+        var el = findByOid(lastSelections[i].dataOid);
         if (!el) continue; // element removed by HMR
         window.__piDesignWidget.addSelection(lastSelections[i]);
         // Pulse so user sees what was re-selected
@@ -649,9 +652,9 @@ function handleAltClick(event) {
   if (!event.altKey) return;
   event.preventDefault();
   event.stopPropagation();
-  var target = event.target.closest("[data-oid]");
+  var target = event.target.closest("[data-oid],[data-source]");
   if (!target) return;
-  var dataOid = target.getAttribute("data-oid");
+  var dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source");
   if (!dataOid) return;
   var computedStyles = getComputedStyles(target);
   var boundingBox = getBoundingBox(target);
@@ -677,14 +680,12 @@ function getBoundingBox(element) {
 
 function getSelector(element) {
   if (element.id) return "#" + element.id;
-  var selector = element.tagName.toLowerCase();
-  if (element.className && typeof element.className === "string") selector += "." + element.className.trim().split(/\\s+/).join(".");
-  return selector;
+  return element.tagName.toLowerCase();
 }
 
 // --- Highlighting (server-triggered, single-color) ---
 function highlightElement(dataOid) {
-  var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+  var el = findByOid(dataOid);
   if (el) {
     el.style.outline = "2px solid #3b82f6";
     el.style.outlineOffset = "2px";
@@ -724,7 +725,7 @@ function showHoverTooltip(dataOid, x, y) {
   if (parsed) {
     location = parsed.filePath + ":" + parsed.line;
   }
-  var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+  var el = findByOid(dataOid);
   if (el) tag = el.tagName.toLowerCase();
   hoverTooltip.innerHTML = '<span style="color:#89b4fa;font-family:monospace">' + escapeHtml(tag ? "<" + tag + ">" : "") + '</span> <span style="color:#a6adc8">' + escapeHtml(location) + '</span>';
   hoverTooltip.style.left = (x + 12) + "px";
@@ -740,22 +741,22 @@ function hideHoverTooltip() {
 
 document.addEventListener("mouseover", function(e) {
   if (!isAltDown || !window.__piDesignWidget) return;
-  var target = e.target.closest("[data-oid]");
+  var target = e.target.closest("[data-oid],[data-source]");
   if (!target) { hideHoverTooltip(); return; }
-  var dataOid = target.getAttribute("data-oid");
+  var dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source");
   if (dataOid) showHoverTooltip(dataOid, e.clientX, e.clientY);
 });
 
 document.addEventListener("mousemove", function(e) {
   if (!isAltDown || !hoverTooltip || hoverTooltip.style.display === "none") return;
-  if (!e.target.closest("[data-oid]")) { hideHoverTooltip(); return; }
+  if (!e.target.closest("[data-oid],[data-source]")) { hideHoverTooltip(); return; }
   hoverTooltip.style.left = (e.clientX + 12) + "px";
   hoverTooltip.style.top = (e.clientY + 12) + "px";
 });
 
 document.addEventListener("mouseout", function(e) {
-  if (!e.target.closest("[data-oid]")) return;
-  if (!e.relatedTarget || !e.relatedTarget.closest("[data-oid]")) hideHoverTooltip();
+  if (!e.target.closest("[data-oid],[data-source]")) return;
+  if (!e.relatedTarget || !e.relatedTarget.closest("[data-oid],[data-source]")) hideHoverTooltip();
 });
 
 // --- Init ---

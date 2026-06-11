@@ -6,19 +6,28 @@
   "exports": {
     ".": {
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./vite": {
       "import": "./dist/vite-plugin.js",
-      "types": "./dist/vite-plugin.d.ts"
+      "default": "./dist/vite-plugin.js"
     },
     "./data-oid": {
       "import": "./dist/data-oid.js",
-      "types": "./dist/data-oid.d.ts"
+      "default": "./dist/data-oid.js"
     },
     "./transform": {
       "import": "./dist/transform.js",
-      "types": "./dist/transform.d.ts"
+      "default": "./dist/transform.js"
+    },
+    "./client": {
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    },
+    "./next": {
+      "import": "./dist/next.js",
+      "default": "./dist/next.js"
     }
   },
   "scripts": {
