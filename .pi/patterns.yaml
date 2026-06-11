@@ -52,3 +52,15 @@ strictModeWhiteList:
   - ^awk\b
   - ^git remote\b
   - ^npm install\b
+  - ^kill\b
+  - ^sleep\b
+  - ^timeout\b
+  - ^npx tsup\b
+  - ^",\b
+  - |-
+    ^, text, re\.DOTALL\)
+        for i, block in enumerate\(css_blocks\):
+            print\(f\b
+  - ^\)\b
+  - ^process\.exit\(1\)\b
+  - ^while\b

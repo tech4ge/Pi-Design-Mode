@@ -169,20 +169,6 @@ export default function (pi: ExtensionAPI) {
         );
         currentSelection.push(message);
         updateWidget(ctx);
-
-        const parsed = parseDataOid(message.dataOid);
-        const location = parsed ? `${parsed.filePath}:${parsed.line}` : message.dataOid;
-        pi.sendMessage({
-          customType: "design-mode-select",
-          content: `🔍 Selected: <${message.tagName}> at ${location}`,
-          display: true,
-          details: {
-            dataOid: message.dataOid,
-            selector: message.selector,
-            computedStyles: message.computedStyles,
-            boundingBox: message.boundingBox,
-          },
-        });
         break;
       }
 
