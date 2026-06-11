@@ -133,6 +133,7 @@ function createWidget(sendMessage) {
   const processingEl = shadow.querySelector(".processing");
 
   let selections = [];
+  let submittedOids = [];
   let isProcessing = false;
 
   function render() {
@@ -208,6 +209,27 @@ function createWidget(sendMessage) {
     render();
   }
 
+  function flashEditedElements() {
+    if (submittedOids.length === 0) return;
+    // Wait 500ms for HMR to re-render
+    setTimeout(function() {
+      for (var i = 0; i < submittedOids.length; i++) {
+        var el = document.querySelector('[data-oid="' + CSS.escape(submittedOids[i]) + '"]');
+        if (el) {
+          el.style.outline = "2px solid #a6e3a1";
+          el.style.outlineOffset = "2px";
+          (function(element) {
+            setTimeout(function() {
+              element.style.outline = "";
+              element.style.outlineOffset = "";
+            }, 2000);
+          })(el);
+        }
+      }
+      submittedOids = [];
+    }, 500);
+  }
+
   function reapplyAllHighlights() {
     // Clear all then re-apply with correct color indices
     var highlighted = document.querySelectorAll("[data-pi-highlighted]");
@@ -267,6 +289,10 @@ function createWidget(sendMessage) {
     setProcessing: function(value) {
       isProcessing = value;
       processingEl.style.display = value ? "block" : "none";
+      if (value) {
+        // Stash submitted data-oids for post-edit flash
+        submittedOids = selections.map(function(s) { return s.dataOid; });
+      }
       if (!value) {
         for (var i = 0; i < selections.length; i++) { clearHighlight(selections[i].dataOid); }
         selections = [];
@@ -274,6 +300,7 @@ function createWidget(sendMessage) {
       render();
     },
     isConnected: function() { return sendMessage.isConnected(); },
+    flashEditedElements: flashEditedElements,
     destroy: destroyWidget,
   };
   render();
@@ -321,6 +348,7 @@ function handleServerMessage(message) {
       break;
     case "design:done":
       if (window.__piDesignWidget) window.__piDesignWidget.setProcessing(false);
+      if (window.__piDesignWidget) window.__piDesignWidget.flashEditedElements();
       break;
   }
 }
