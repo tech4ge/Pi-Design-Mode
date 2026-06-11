@@ -171,9 +171,9 @@ function createWidget(sendMessage) {
     submitBtn.disabled = selections.length === 0 || isProcessing;
     input.disabled = isProcessing;
     selectionsContainer.innerHTML = "";
-    for (var i = 0; i < selections.length; i++) {
-      var sel = selections[i];
-      var color = SELECTION_COLORS[i % SELECTION_COLORS.length];
+    for (let i = 0; i < selections.length; i++) {
+      let sel = selections[i];
+      let color = SELECTION_COLORS[i % SELECTION_COLORS.length];
       var item = document.createElement("div");
       item.className = "selection-item";
       var parsed = sendMessage.parseDataOid(sel.dataOid);
