@@ -283,6 +283,7 @@ function destroyWidget() {
   var host = document.getElementById(WIDGET_ID);
   if (host) host.remove();
   delete window.__piDesignWidget;
+  hideHoverTooltip();
 }
 
 // --- Connection ---
@@ -376,6 +377,68 @@ function highlightElement(dataOid) {
     el.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 }
+
+// --- Hover Tooltip ---
+var hoverTooltip = null;
+var isAltDown = false;
+
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Alt") isAltDown = true;
+});
+document.addEventListener("keyup", function(e) {
+  if (e.key === "Alt") {
+    isAltDown = false;
+    hideHoverTooltip();
+  }
+});
+
+function showHoverTooltip(dataOid, x, y) {
+  if (!hoverTooltip) {
+    hoverTooltip = document.createElement("div");
+    hoverTooltip.id = "pi-design-hover-tooltip";
+    hoverTooltip.style.cssText = "position:fixed;z-index:999998;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;font-size:12px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:4px 8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.2);";
+    document.body.appendChild(hoverTooltip);
+  }
+  var parsed = parseDataOid(dataOid);
+  var tag = "";
+  var location = dataOid;
+  if (parsed) {
+    location = parsed.filePath + ":" + parsed.line;
+  }
+  // Try to get the tag name from the element
+  var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
+  if (el) tag = el.tagName.toLowerCase();
+  hoverTooltip.innerHTML = '<span style="color:#89b4fa;font-family:monospace">' + (tag ? "<" + tag + ">" : "") + '</span> <span style="color:#a6adc8">' + location + '</span>';
+  hoverTooltip.style.left = (x + 12) + "px";
+  hoverTooltip.style.top = (y + 12) + "px";
+  hoverTooltip.style.display = "block";
+}
+
+function hideHoverTooltip() {
+  if (hoverTooltip) {
+    hoverTooltip.style.display = "none";
+  }
+}
+
+document.addEventListener("mouseover", function(e) {
+  if (!isAltDown || !window.__piDesignWidget) return;
+  var target = e.target.closest("[data-oid]");
+  if (!target) { hideHoverTooltip(); return; }
+  var dataOid = target.getAttribute("data-oid");
+  if (dataOid) showHoverTooltip(dataOid, e.clientX, e.clientY);
+});
+
+document.addEventListener("mousemove", function(e) {
+  if (!isAltDown || !hoverTooltip || hoverTooltip.style.display === "none") return;
+  if (!e.target.closest("[data-oid]")) { hideHoverTooltip(); return; }
+  hoverTooltip.style.left = (e.clientX + 12) + "px";
+  hoverTooltip.style.top = (e.clientY + 12) + "px";
+});
+
+document.addEventListener("mouseout", function(e) {
+  if (!e.target.closest("[data-oid]")) return;
+  if (!e.relatedTarget || !e.relatedTarget.closest("[data-oid]")) hideHoverTooltip();
+});
 
 // --- Init ---
 document.addEventListener("click", handleAltClick, true);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
@@ -6,35 +6,25 @@ import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
-  const [shaking, setShaking] = useState(false)
-
-  useEffect(() => {
-    if (!shaking) return
-    const id = setTimeout(() => setShaking(false), 400)
-    return () => clearTimeout(id)
-  }, [shaking])
 
   return (
     <>
-      <section id="center" className={shaking ? 'screen-shake' : ''}>
+      <section id="center">
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
           <img src={reactLogo} className="framework" alt="React logo" />
           <img src={viteLogo} className="vite" alt="Vite logo" />
         </div>
         <div>
-          <h1>Bob's Your Uncle!</h1>
+          <h1>Get started</h1>
           <p>
             Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
           </p>
         </div>
         <button
           type="button"
-          className={`counter shake-trigger ${shaking ? 'shaking' : ''}`}
-          onClick={() => {
-            setCount((count) => count + 5);
-            setShaking(true);
-          }}
+          className="counter"
+          onClick={() => setCount((count) => count + 1)}
         >
           Count is {count}
         </button>
