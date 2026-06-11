@@ -391,6 +391,10 @@ document.addEventListener("keyup", function(e) {
     hideHoverTooltip();
   }
 });
+window.addEventListener("blur", function() {
+  isAltDown = false;
+  hideHoverTooltip();
+});
 
 function showHoverTooltip(dataOid, x, y) {
   if (!hoverTooltip) {
@@ -399,16 +403,15 @@ function showHoverTooltip(dataOid, x, y) {
     hoverTooltip.style.cssText = "position:fixed;z-index:999998;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;font-size:12px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:4px 8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.2);";
     document.body.appendChild(hoverTooltip);
   }
-  var parsed = parseDataOid(dataOid);
+  var escapeHtml = function(s) { return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
   var tag = "";
   var location = dataOid;
   if (parsed) {
     location = parsed.filePath + ":" + parsed.line;
   }
-  // Try to get the tag name from the element
   var el = document.querySelector('[data-oid="' + CSS.escape(dataOid) + '"]');
   if (el) tag = el.tagName.toLowerCase();
-  hoverTooltip.innerHTML = '<span style="color:#89b4fa;font-family:monospace">' + (tag ? "<" + tag + ">" : "") + '</span> <span style="color:#a6adc8">' + location + '</span>';
+  hoverTooltip.innerHTML = '<span style="color:#89b4fa;font-family:monospace">' + escapeHtml(tag ? "<" + tag + ">" : "") + '</span> <span style="color:#a6adc8">' + escapeHtml(location) + '</span>';
   hoverTooltip.style.left = (x + 12) + "px";
   hoverTooltip.style.top = (y + 12) + "px";
   hoverTooltip.style.display = "block";
