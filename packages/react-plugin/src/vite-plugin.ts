@@ -143,7 +143,7 @@ function createWidget(sendMessage) {
       <button class="qa-btn" data-action="revert">Revert</button>
     </div>
     <div class="processing" style="display:none">⏳ Processing...<button class="cancel" style="display:none">Cancel</button></div>
-    <div class="hint">Alt+Click to select · Esc to clear</div>
+    <div class="hint">Alt+Click to select · Alt+R recall · Esc to clear</div>
     <div class="history-panel" style="display:none"><div class="history-panel-title">Recent</div></div>
   \`;
   shadow.appendChild(style);
@@ -351,7 +351,7 @@ let lastSelections = [];
       hint.textContent = "✓ Changes applied";
       hint.style.color = "#a6e3a1";
       setTimeout(function() {
-        hint.textContent = "Alt+Click to select · Esc to clear";
+        hint.textContent = "Alt+Click to select · Alt+R recall · Esc to clear";
         hint.style.color = "";
       }, 3000);
     }
@@ -503,6 +503,12 @@ quickActions.addEventListener("click", function(e) {
         var el = document.querySelector('[data-oid="' + CSS.escape(lastSelections[i].dataOid) + '"]');
         if (!el) continue; // element removed by HMR
         window.__piDesignWidget.addSelection(lastSelections[i]);
+        // Pulse so user sees what was re-selected
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        (function(element) {
+          element.style.outlineOffset = "6px";
+          setTimeout(function() { element.style.outlineOffset = "2px"; }, 400);
+        })(el);
       }
     }
   });
