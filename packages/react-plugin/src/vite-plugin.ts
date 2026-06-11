@@ -257,14 +257,48 @@ function createWidget(sendMessage) {
     }
   }
 
+  function computeStructuralContext() {
+    if (selections.length <= 1) return { siblings: [], sameComponent: [] };
+    var oids = selections.map(function(s) { return s.dataOid; });
+    // Group by parent element (siblings)
+    var parentMap = {};
+    for (var i = 0; i < oids.length; i++) {
+      var el = document.querySelector('[data-oid="' + CSS.escape(oids[i]) + '"]');
+      var parentKey = el && el.parentElement ? el.parentElement.tagName + ":" + Array.prototype.indexOf.call(el.parentElement.children, el) : "none:" + i;
+      if (!parentMap[parentKey]) parentMap[parentKey] = [];
+      parentMap[parentKey].push(oids[i]);
+    }
+    var siblings = [];
+    var keys = Object.keys(parentMap);
+    for (var k = 0; k < keys.length; k++) {
+      if (parentMap[keys[k]].length > 1) siblings.push(parentMap[keys[k]]);
+    }
+    // Group by file path (sameComponent)
+    var fileMap = {};
+    for (var j = 0; j < oids.length; j++) {
+      var parsed = parseDataOid(oids[j]);
+      var fileKey = parsed ? parsed.filePath : oids[j];
+      if (!fileMap[fileKey]) fileMap[fileKey] = [];
+      fileMap[fileKey].push(oids[j]);
+    }
+    var sameComponent = [];
+    var fileKeys = Object.keys(fileMap);
+    for (var f = 0; f < fileKeys.length; f++) {
+      if (fileMap[fileKeys[f]].length > 1) sameComponent.push(fileMap[fileKeys[f]]);
+    }
+    return { siblings: siblings, sameComponent: sameComponent };
+  }
+
   submitBtn.addEventListener("click", function() {
     if (selections.length === 0 || isProcessing) return;
     var instruction = input.value.trim();
     if (!instruction) return;
+    var structuralContext = computeStructuralContext();
     sendMessage.send({
       type: "design:submit",
       selections: selections.map(function(s) { return s.dataOid; }),
       instruction: instruction,
+      structuralContext: structuralContext,
     });
     input.value = "";
     isProcessing = true;

@@ -157,6 +157,38 @@ describe("DesignModeServer", () => {
     ws.close();
   });
 
+  it("processes design:submit with structural context", async () => {
+    server = new DesignModeServer({ port: 9481 });
+    const port = await server.start();
+
+    const received: ClientMessage[] = [];
+    server.onMessage((_ws, msg) => received.push(msg));
+
+    const ws = new WebSocket(`ws://localhost:${port}`);
+    await new Promise<void>((resolve) => ws.on("open", resolve));
+
+    ws.send(JSON.stringify({
+      type: "design:submit",
+      selections: ["c:abc:r:src/List.tsx:12:5", "c:abc:r:src/List.tsx:16:5", "c:abc:r:src/Header.tsx:8:3"],
+      instruction: "make these the same width",
+      structuralContext: {
+        siblings: [["c:abc:r:src/List.tsx:12:5", "c:abc:r:src/List.tsx:16:5"]],
+        sameComponent: [["c:abc:r:src/List.tsx:12:5", "c:abc:r:src/List.tsx:16:5"], ["c:abc:r:src/Header.tsx:8:3"]],
+      },
+    }));
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+
+    expect(received).toHaveLength(1);
+    expect(received[0].type).toBe("design:submit");
+    if (received[0].type === "design:submit") {
+      expect(received[0].selections).toHaveLength(3);
+      expect(received[0].structuralContext).toBeDefined();
+      expect(received[0].structuralContext?.siblings).toHaveLength(1);
+      expect(received[0].structuralContext?.sameComponent).toHaveLength(2);
+    }
+    ws.close();
+  });
+
   it("sends design:mode:on when client connects", async () => {
     server = new DesignModeServer({ port: 9481 });
     const port = await server.start();

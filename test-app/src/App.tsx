@@ -6,7 +6,6 @@ import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
-  const [flashing, setFlashing] = useState(false)
 
   return (
     <>
@@ -25,12 +24,8 @@ function App() {
         <button
           type="button"
           className="counter"
-          onClick={() => {
-            setCount((count) => count + 10)
-            setFlashing(true)
-            setTimeout(() => setFlashing(false), 300)
-          }}
-          className={`counter${flashing ? ' flash' : ''}`}
+          onClick={() => setCount((count) => count + 10)}
+          onContextMenu={(e) => { e.preventDefault(); setCount((count) => count - 10) }}
         >
           Count is {count}
         </button>

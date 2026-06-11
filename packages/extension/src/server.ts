@@ -8,7 +8,7 @@ interface ServerOptions {
 type ClientMessage =
   | { type: "design:connect"; url: string; title: string }
   | { type: "design:select"; dataOid: string; selector: string; computedStyles: Record<string, string>; boundingBox: { x: number; y: number; width: number; height: number }; tagName: string; textContent: string }
-  | { type: "design:submit"; selections: string[]; instruction: string }
+  | { type: "design:submit"; selections: string[]; instruction: string; structuralContext?: { siblings: string[][]; sameComponent: string[][] } }
   | { type: "design:deselect"; dataOid: string }
   | { type: "design:disconnect" };
 
