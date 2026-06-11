@@ -137,6 +137,35 @@ function createWidget(sendMessage) {
   let submittedOids = [];
   let isProcessing = false;
 
+  function persistSelections() {
+    try {
+      if (selections.length > 0) {
+        sessionStorage.setItem("pi-design-selections", JSON.stringify(selections));
+      } else {
+        sessionStorage.removeItem("pi-design-selections");
+      }
+    } catch(e) {}
+  }
+
+  function restoreSelections() {
+    try {
+      var saved = sessionStorage.getItem("pi-design-selections");
+      if (!saved) return;
+      var parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return;
+      for (var i = 0; i < parsed.length; i++) {
+        var s = parsed[i];
+        var el = document.querySelector('[data-oid="' + CSS.escape(s.dataOid) + '"]');
+        if (!el) continue; // skip elements no longer in DOM
+        if (selections.findIndex(function(x) { return x.dataOid === s.dataOid; }) >= 0) continue; // already selected
+        selections.push(s);
+        applyHighlight(s.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
+      }
+      if (selections.length > 0) render();
+      persistSelections(); // re-persist with only valid entries
+    } catch(e) {}
+  }
+
   function render() {
     dot.className = "dot" + (sendMessage.isConnected() ? " connected" : "");
     submitBtn.disabled = selections.length === 0 || isProcessing;
@@ -196,6 +225,7 @@ function createWidget(sendMessage) {
     selections = selections.filter(function(s) { return s.dataOid !== dataOid; });
     clearHighlight(dataOid);
     sendMessage.send({ type: "design:deselect", dataOid: dataOid });
+    persistSelections();
     // Re-apply colors after removal (indices may shift)
     reapplyAllHighlights();
     render();
@@ -207,6 +237,7 @@ function createWidget(sendMessage) {
     }
     selections = [];
     sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
+    persistSelections();
     render();
   }
 
@@ -350,6 +381,7 @@ function createWidget(sendMessage) {
       selections.push(data);
       var color = SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length];
       applyHighlight(data.dataOid, color);
+      persistSelections();
       render();
       return true;
     },
@@ -377,6 +409,8 @@ function createWidget(sendMessage) {
     destroy: destroyWidget,
   };
   render();
+  // Restore selections from previous session (e.g. after page reload)
+  restoreSelections();
 }
 
 function destroyWidget() {

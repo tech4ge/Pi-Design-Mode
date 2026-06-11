@@ -21,7 +21,7 @@ function App() {
   }
 
   return (
-    <div className={`${shaking ? 'shake' : ''} ${flashing ? 'flash' : ''}`.trim()}>
+    <div className={`app-root ${shaking ? 'shake' : ''} ${flashing ? 'flash' : ''}`.trim()}>
       <section id="center">
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
@@ -127,8 +127,6 @@ function App() {
         </div>
       </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
     </div>
   )
 }
