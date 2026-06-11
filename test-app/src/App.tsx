@@ -8,14 +8,20 @@ function App() {
   const [count, setCount] = useState(0)
 
   const [shaking, setShaking] = useState(false)
+  const [flashing, setFlashing] = useState(false)
 
   const shake = () => {
     setShaking(true)
     setTimeout(() => setShaking(false), 400)
   }
 
+  const flash = () => {
+    setFlashing(true)
+    setTimeout(() => setFlashing(false), 300)
+  }
+
   return (
-    <div className={shaking ? 'shake' : ''}>
+    <div className={`${shaking ? 'shake' : ''} ${flashing ? 'flash' : ''}`.trim()}>
       <section id="center">
         <div className="hero">
           <img src={heroImg} className="base" width="170" height="179" alt="" />
@@ -32,7 +38,7 @@ function App() {
           type="button"
           className="counter"
           onClick={() => { setCount((count) => count + 10); shake() }}
-          onContextMenu={(e) => { e.preventDefault(); setCount((count) => count - 10); shake() }}
+          onContextMenu={(e) => { e.preventDefault(); setCount((count) => count - 10); flash() }}
         >
           Count is {count}
         </button>

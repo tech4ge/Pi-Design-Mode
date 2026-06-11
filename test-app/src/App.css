@@ -1,7 +1,7 @@
 .counter {
-  font-size: 24px;
-  padding: 8px 16px;
-  border-radius: 10px;
+  font-size: 48px;
+  padding: 16px 32px;
+  border-radius: 20px;
   color: var(--accent);
   background: var(--accent-bg);
   border: 2px solid transparent;
@@ -58,6 +58,16 @@
 
 .shake {
   animation: screen-shake 0.4s ease-out;
+}
+
+.flash {
+  animation: screen-flash 0.3s ease-out;
+}
+
+@keyframes screen-flash {
+  0% { filter: brightness(3); }
+  50% { filter: brightness(2); }
+  100% { filter: brightness(1); }
 }
 
 @keyframes screen-shake {

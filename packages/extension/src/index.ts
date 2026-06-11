@@ -248,8 +248,9 @@ export default function (pi: ExtensionAPI) {
 
   // --- Lifecycle ---
 
-  // W3: Only send design:done when a design-triggered turn ends
-  pi.on("turn_end", () => {
+  // Fire design:done when the full agent run completes (all turns),
+  // not after each individual turn — Pi may take multiple turns
+  pi.on("agent_end", () => {
     if (server && designTurnInFlight) {
       server.broadcast({ type: "design:done" });
       designTurnInFlight = false;
