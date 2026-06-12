@@ -47367,34 +47367,6 @@ function src_default(pi) {
 
 `;
         }
-        if (message.structuralContext && (message.structuralContext.siblings.length > 0 || message.structuralContext.sameComponent.length > 0)) {
-          if (message.structuralContext.siblings.length > 0) {
-            content += `Sibling groups (elements sharing the same parent):
-`;
-            for (const group of message.structuralContext.siblings) {
-              const locs = group.map((oid) => {
-                const p = parseDataOid(oid);
-                return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid;
-              });
-              content += `  - ${locs.join(", ")}
-`;
-            }
-          }
-          if (message.structuralContext.sameComponent.length > 0) {
-            content += `Same component groups (elements from the same file):
-`;
-            for (const group of message.structuralContext.sameComponent) {
-              const locs = group.map((oid) => {
-                const p = parseDataOid(oid);
-                return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid;
-              });
-              content += `  - ${locs.join(", ")}
-`;
-            }
-          }
-          content += `
-`;
-        }
         content += `Instruction: ${message.instruction}`;
         designTurnInFlight = true;
         pi.sendMessage({

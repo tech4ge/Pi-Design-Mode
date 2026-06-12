@@ -206,24 +206,6 @@ export default function (pi: ExtensionAPI) {
           content += `Styles: ${Object.entries(sel.computedStyles).map(([k, v]) => `${k}: ${v}`).join(", ")}\n`;
           content += `Position: ${sel.boundingBox.x},${sel.boundingBox.y} (${sel.boundingBox.width}×${sel.boundingBox.height})\n\n`;
         }
-        // Add structural context if available (multi-select only)
-        if (message.structuralContext && (message.structuralContext.siblings.length > 0 || message.structuralContext.sameComponent.length > 0)) {
-          if (message.structuralContext.siblings.length > 0) {
-            content += `Sibling groups (elements sharing the same parent):\n`;
-            for (const group of message.structuralContext.siblings) {
-              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid; });
-              content += `  - ${locs.join(", ")}\n`;
-            }
-          }
-          if (message.structuralContext.sameComponent.length > 0) {
-            content += `Same component groups (elements from the same file):\n`;
-            for (const group of message.structuralContext.sameComponent) {
-              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid; });
-              content += `  - ${locs.join(", ")}\n`;
-            }
-          }
-          content += `\n`;
-        }
         content += `Instruction: ${message.instruction}`;
 
         designTurnInFlight = true; // W3: Track design-triggered turns
