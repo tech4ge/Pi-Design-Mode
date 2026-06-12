@@ -2,6 +2,7 @@ import { parseDataOid } from "./data-oid/shared.js";
 import { reconnectPolicy } from "./reconnect-policy.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { createHistory } from "./browser-client/history.js";
+import { createHoverTooltip } from "./browser-client/hover-tooltip.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -623,27 +624,19 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   }
 
   // --- Hover Tooltip ---
-  let hoverTooltip: HTMLElement | null = null;
+  const hoverTooltipMod = createHoverTooltip({ document, escapeHtml });
 
   function showHoverTooltip(dataOid: string, x: number, y: number) {
-    if (!hoverTooltip) {
-      hoverTooltip = document.createElement("div");
-      hoverTooltip.id = "pi-design-hover-tooltip";
-      hoverTooltip.style.cssText = "position:fixed;z-index:999998;pointer-events:none;font-family:system-ui,-apple-system,sans-serif;font-size:12px;background:#1e1e2e;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:4px 8px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.2);";
-      document.body.appendChild(hoverTooltip);
-    }
     const parsed = parseDataOid(dataOid);
     const location = parsed ? `${parsed.filePath}:${parsed.line}` : dataOid;
     const el = findByOid(dataOid);
     const tag = el ? el.tagName.toLowerCase() : "";
-    hoverTooltip.innerHTML = `<span style="color:#89b4fa;font-family:monospace">${escapeHtml(tag ? `<${tag}>` : "")}</span> <span style="color:#a6adc8">${escapeHtml(location)}</span>`;
-    hoverTooltip.style.left = (x + 12) + "px";
-    hoverTooltip.style.top = (y + 12) + "px";
-    hoverTooltip.style.display = "block";
+    const label = tag ? `<${tag}>` : "";
+    hoverTooltipMod.show(label, location, x, y);
   }
 
   function hideHoverTooltip() {
-    if (hoverTooltip) hoverTooltip.style.display = "none";
+    hoverTooltipMod.hide();
   }
 
   // --- Alt+Click ---
@@ -693,10 +686,11 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   });
 
   document.addEventListener("mousemove", (e) => {
-    if (!isAltDown || !hoverTooltip || hoverTooltip.style.display === "none") return;
+    const tooltipEl = hoverTooltipMod.getEl();
+    if (!isAltDown || !tooltipEl || tooltipEl.style.display === "none") return;
     if (!(e.target as Element).closest("[data-oid],[data-source]")) { hideHoverTooltip(); return; }
-    hoverTooltip.style.left = ((e as MouseEvent).clientX + 12) + "px";
-    hoverTooltip.style.top = ((e as MouseEvent).clientY + 12) + "px";
+    tooltipEl.style.left = ((e as MouseEvent).clientX + 12) + "px";
+    tooltipEl.style.top = ((e as MouseEvent).clientY + 12) + "px";
   });
 
   document.addEventListener("mouseout", (e) => {
