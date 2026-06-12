@@ -34,9 +34,9 @@ export function createSelectionManager(deps: SelectionDeps) {
   function setRender(r: () => void) { _render = r; }
 
   function addSelection(sel: any): boolean {
-    const existing = selections.findIndex((s) => s.dataOid === sel.dataOid);
+    const existing = selections.findIndex((s) => s.dataOid === sel.dataOid && s.instanceIndex === sel.instanceIndex);
     if (existing !== -1) {
-      removeSelection(sel.dataOid);
+      removeSelection(sel.dataOid, sel.instanceIndex);
       return false;
     }
     selections.push(sel);
@@ -46,8 +46,13 @@ export function createSelectionManager(deps: SelectionDeps) {
     return true;
   }
 
-  function removeSelection(dataOid: string) {
-    selections = selections.filter((s) => s.dataOid !== dataOid);
+  function removeSelection(dataOid: string, instanceIndex?: number) {
+    selections = selections.filter((s) => {
+      if (instanceIndex !== undefined) {
+        return !(s.dataOid === dataOid && s.instanceIndex === instanceIndex);
+      }
+      return s.dataOid !== dataOid;
+    });
     clearHighlight(dataOid);
     sendMessage?.send({ type: "design:deselect", dataOid });
     persistSelections();
