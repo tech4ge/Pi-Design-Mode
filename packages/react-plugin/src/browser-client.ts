@@ -248,9 +248,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     selectionMod.clearAllSelections();
   }
 
-  function flashElement(dataOid: string) {
-    const sel = selectionMod.getSelections().find((s) => s.dataOid === dataOid);
-    const el = sel ? resolveSelectionElement(sel) : findByOid(dataOid);
+  function flashElement(sel: any) {
+    const el = sel ? resolveSelectionElement(sel) : (sel?.dataOid ? findByOid(sel.dataOid) : null);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     const orig = (el as HTMLElement).style.outlineOffset;
@@ -461,7 +460,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       item.className = "selection-item";
       item.innerHTML = `<span class="color-dot" style="background:${color}"></span><span class="tag">&lt;${escapeHtml(sel.tagName)}&gt;${instanceLabel}</span><span class="file">${escapeHtml(location)}</span><button class="remove" data-oid="${escapeHtml(sel.dataOid)}" data-instance="${sel.instanceIndex ?? 0}">×</button>`;
       item.querySelector(".remove")!.addEventListener("click", (e) => { e.stopPropagation(); removeSelection(sel.dataOid, sel.instanceIndex, { send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); }, isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; } }); });
-      item.addEventListener("click", () => flashElement(sel.dataOid));
+      item.addEventListener("click", () => flashElement(sel));
       selectionsContainer.appendChild(item);
     }
     if (selectionMod.getSelections().length === 0) {

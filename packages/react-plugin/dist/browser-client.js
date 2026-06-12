@@ -627,9 +627,8 @@
     }, clearAllSelections = function(sendMessage2) {
       selectionMod.setSendMessage(sendMessage2);
       selectionMod.clearAllSelections();
-    }, flashElement = function(dataOid) {
-      const sel = selectionMod.getSelections().find((s) => s.dataOid === dataOid);
-      const el = sel ? resolveSelectionElement(sel) : findByOid(dataOid);
+    }, flashElement = function(sel) {
+      const el = sel ? resolveSelectionElement(sel) : (sel == null ? void 0 : sel.dataOid) ? findByOid(sel.dataOid) : null;
       if (!el) return;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       const orig = el.style.outlineOffset;
@@ -837,7 +836,7 @@
             return ws !== null && ws.readyState === WebSocket.OPEN;
           } });
         });
-        item.addEventListener("click", () => flashElement(sel.dataOid));
+        item.addEventListener("click", () => flashElement(sel));
         selectionsContainer.appendChild(item);
       }
       if (selectionMod.getSelections().length === 0) {
