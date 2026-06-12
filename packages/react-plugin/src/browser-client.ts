@@ -432,7 +432,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       const item = (e.target as Element).closest(".history-item");
       const clearEl = (e.target as Element).closest(".history-clear");
       if (item) { input.value = item.textContent || ""; historyDropdown.style.display = "none"; input.focus(); }
-      if (clearEl) { try { localStorage.removeItem("pi-design-history"); } catch {} historyDropdown.style.display = "none"; }
+      if (clearEl) { historyMod.clearHistory(); historyDropdown.style.display = "none"; }
     });
 
     cancelBtn.addEventListener("click", () => {
@@ -463,7 +463,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if (selections.length === 0 || isProcessing) return;
       const instruction = input.value.trim();
       if (!instruction) return;
-      historyMod.saveHistory(instruction);
+  historyMod.saveHistory(instruction);
       const structuralContext = computeStructuralContext();
       submittedOids = selections.map((s) => s.dataOid);
       sendMessage.send({
@@ -601,9 +601,6 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
   }
 
-  function showHistory() {
-    historyMod.showHistory();
-  }
 
   function destroyWidget() {
     if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }

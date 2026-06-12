@@ -93,4 +93,12 @@ describe("createHistory", () => {
     history2.showHistory();
     expect(appended).toBe(false);
   });
+
+  it("clearHistory removes stored entries", () => {
+    history.saveHistory("make it blue");
+    history.saveHistory("center it");
+    expect(history.getHistory()).toHaveLength(2);
+    history.clearHistory();
+    expect(history.getHistory()).toEqual([]);
+  });
 });

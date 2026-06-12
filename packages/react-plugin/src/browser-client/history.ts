@@ -72,5 +72,11 @@ export function createHistory(deps: HistoryDeps) {
     }
   }
 
-  return { getHistory, saveHistory, showHistory };
+  function clearHistory() {
+    try {
+      storage.removeItem(STORAGE_KEY);
+    } catch {}
+  }
+
+  return { getHistory, saveHistory, showHistory, clearHistory };
 }
