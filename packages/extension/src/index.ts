@@ -245,13 +245,19 @@ export default function (pi: ExtensionAPI) {
   // not after each individual turn — Pi may take multiple turns
   pi.on("agent_end", (event) => {
     if (server && designTurnInFlight) {
-      // Check if the agent ended with errors
+      // Only check for design_inspect errors — other tool errors (edit, bash, etc.)
+      // are Pi's own business and may be retried automatically.
       const msgs = event.messages || [];
-      const hasError = msgs.some((m: any) =>
-        m.role === "toolResult" && m.isError
+      const hasDesignError = msgs.some((m: any) =>
+        m.role === "toolResult" && m.toolName === "design_inspect" && m.isError
       );
-      if (hasError) {
-        server.broadcast({ type: "design:error", message: "Pi encountered an error while processing your design changes" });
+      if (hasDesignError) {
+        // Broadcast design:error only for design-specific failures
+        const designErrMsg = msgs
+          .filter((m: any) => m.role === "toolResult" && m.toolName === "design_inspect" && m.isError)
+          .map((m: any) => m.content?.map((c: any) => c.text).join("") || "Unknown error")
+          .join("; ");
+        server.broadcast({ type: "design:error", message: designErrMsg });
       } else {
         server.broadcast({ type: "design:done" });
       }
