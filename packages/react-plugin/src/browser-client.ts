@@ -102,21 +102,29 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     } catch {}
   }
 
-  function restoreSelections() {
+  function restoreSelections(retryCount = 0) {
     try {
       const saved = sessionStorage.getItem("pi-design-selections");
       if (!saved) return;
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed) || parsed.length === 0 || selections.length > 0) return;
+      let found = 0;
       for (const s of parsed) {
         const el = findByOid(s.dataOid);
         if (!el) continue;
         if (selections.findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
         selections.push(s);
         applyHighlight(s.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
+        found++;
       }
-      if (selections.length > 0) render();
-      persistSelections();
+      if (found > 0) {
+        render();
+        // Only clear sessionStorage once we've successfully restored everything
+        if (found >= parsed.length) sessionStorage.removeItem("pi-design-selections");
+      } else if (retryCount < 10) {
+        // DOM not ready yet (e.g. Next.js hydration) — retry after a short delay
+        setTimeout(() => restoreSelections(retryCount + 1), 300);
+      }
     } catch {}
   }
 
