@@ -1,3 +1,5 @@
+import { parseDataOid } from "./data-oid/shared.js";
+
 // Pi Design Mode — Browser Client
 //
 // Single source of truth for the browser client runtime.
@@ -33,19 +35,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
            document.querySelector(`[data-source="${CSS.escape(value)}"]`);
   }
 
-  /** Parse all 3 OID formats into canonical components */
-  function parseDataOid(oid: string) {
-    // Babel/Vite: c:H:r:file:line:column
-    const babelMatch = oid.match(/^([cef]):([0-9a-f]+):r:(.+):(\d+):(\d+)$/);
-    if (babelMatch) return { type: babelMatch[1], projectHash: babelMatch[2], filePath: babelMatch[3], line: parseInt(babelMatch[4], 10), column: parseInt(babelMatch[5], 10) };
-    // SWC: file:line:column
-    const swcFull = oid.match(/^(.+):(\d+):(\d+)$/);
-    if (swcFull) return { type: "c", projectHash: "", filePath: swcFull[1], line: parseInt(swcFull[2], 10), column: parseInt(swcFull[3], 10) };
-    // SWC: file:line (swc-plugin-react-source-string)
-    const swcLine = oid.match(/^(.+):(\d+)$/);
-    if (swcLine) return { type: "c", projectHash: "", filePath: swcLine[1], line: parseInt(swcLine[2], 10), column: 0 };
-    return null;
-  }
+  // parseDataOid is imported from data-oid/shared at the top of this module.
+  // tsup inlines it into the IIFE — no runtime import.
 
   function getSelector(element: Element): string {
     if (element.id) return "#" + element.id;

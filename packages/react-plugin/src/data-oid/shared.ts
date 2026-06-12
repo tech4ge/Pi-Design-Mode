@@ -1,6 +1,8 @@
-import crypto from "node:crypto";
-
 /**
+ * data-oid shared module — browser-safe.
+ *
+ * No Node.js imports. Safe to import from the browser client IIFE.
+ *
  * data-oid format (Babel/Vite): c:H:r:file:line:column
  *   c — component type marker (future: 'e' for element, 'f' for fragment)
  *   H — short hash of project root
@@ -61,8 +63,4 @@ export function parseDataOid(dataOid: string): DataOidComponents | null {
     };
   }
   return null;
-}
-
-export function hashProjectRoot(projectRoot: string): string {
-  return crypto.createHash("sha256").update(projectRoot).digest("hex").slice(0, 8);
 }

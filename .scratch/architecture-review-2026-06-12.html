@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review — pi-design-mode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .drift-line { border-left: 3px solid #dc2626; padding-left: 12px; }
+      .candidate-card { scroll-margin-top: 80px; }
+      .mass-bar { height: 18px; border-radius: 3px; transition: width 0.3s; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+      <header class="space-y-4">
+        <h1 class="text-3xl font-bold tracking-tight">Architecture review — pi-design-mode</h1>
+        <p class="text-sm text-slate-500">2026-06-12 · 5 candidates · <a href="#prev-context" class="underline text-slate-600">previous review context</a></p>
+        <div class="flex gap-4 text-xs uppercase tracking-wider text-slate-500">
+          <span>■ solid box = module</span>
+          <span class="border-l border-slate-300 pl-4">┅ dashed line = seam</span>
+          <span class="border-l border-slate-300 pl-4"><span class="text-red-500">→</span> red = drift / leakage</span>
+          <span class="border-l border-slate-300 pl-4">■ dark box = deep module</span>
+        </div>
+      </header>
+
+      <!-- Codebase mass overview -->
+      <section class="space-y-4">
+        <h2 class="text-xl font-bold">Module mass</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-5 space-y-2 text-sm font-mono">
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">browser-client.ts</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-red-400" style="width:87%"></div></div>
+            <span class="text-slate-500 w-12 text-right">697</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">index.ts (extension)</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-amber-400" style="width:20%"></div></div>
+            <span class="text-slate-500 w-12 text-right">157</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">server.ts</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-amber-400" style="width:15%"></div></div>
+            <span class="text-slate-500 w-12 text-right">123</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">vite-plugin.ts</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-emerald-400" style="width:9%"></div></div>
+            <span class="text-slate-500 w-12 text-right">73</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">inspect.ts</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-emerald-400" style="width:17%"></div></div>
+            <span class="text-slate-500 w-12 text-right">135</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">transform.ts</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-emerald-400" style="width:6%"></div></div>
+            <span class="text-slate-500 w-12 text-right">46</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">data-oid.ts</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-emerald-400" style="width:8%"></div></div>
+            <span class="text-slate-500 w-12 text-right">66</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-64 text-right text-slate-600">next.tsx</span>
+            <div class="flex-1 bg-slate-100 rounded overflow-hidden"><div class="mass-bar bg-emerald-400" style="width:2%"></div></div>
+            <span class="text-slate-500 w-12 text-right">17</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 1                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c1" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Decompose the browser client god file</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Strong</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">structural</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/browser-client.ts <span class="text-red-500 font-bold">697 lines · single IIFE · ~20 closure-shared functions · 8 mutable state vars</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before — one god file</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm">
+              <div class="mermaid">
+                flowchart TD
+                  BC["browser-client.ts<br/><b>697 lines · single IIFE</b>"]
+                  WS["WS connection<br/>connectWS · handleServerMessage<br/>disconnect"]
+                  SEL["Selection<br/>add · remove · clear · persist<br/>restore · highlight · flash"]
+                  WID["Widget<br/>create · render · destroy<br/>Shadow DOM · CSS · HTML"]
+                  HIST["History<br/>get · save · show · clear"]
+                  HOV["Hover Tooltip<br/>show · hide · mousemove"]
+                  CLICK["Alt+Click<br/>handleAltClick<br/>structural context"]
+                  KEY["Keyboard<br/>Escape · Alt+R"]
+
+                  BC --- WS
+                  BC --- SEL
+                  BC --- WID
+                  BC --- HIST
+                  BC --- HOV
+                  BC --- CLICK
+                  BC --- KEY
+
+                  style BC fill:#fef2f2,stroke:#dc2626
+                  style WS fill:#fff7ed,stroke:#f59e0b
+                  style SEL fill:#fff7ed,stroke:#f59e0b
+                  style WID fill:#fff7ed,stroke:#f59e0b
+                  style HIST fill:#fff7ed,stroke:#f59e0b
+                  style HOV fill:#fff7ed,stroke:#f59e0b
+                  style CLICK fill:#fff7ed,stroke:#f59e0b
+                  style KEY fill:#fff7ed,stroke:#f59e0b
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After — composed modules behind a deep seam</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm">
+              <div class="mermaid">
+                flowchart TD
+                  API["browser-client.ts<br/><b>~80 lines · orchestrator</b>"]
+                  CONN["connection.ts<br/><b>~60 lines</b><br/>WS connect · reconnect · send"]
+                  SEL["selection.ts<br/><b>~100 lines</b><br/>add · remove · clear · highlight · persist/restore"]
+                  WID["widget.ts<br/><b>~250 lines</b><br/>Shadow DOM · create · render · destroy"]
+                  HIST["history.ts<br/><b>~30 lines</b><br/>get · save · show · clear"]
+                  HOV["hover-tooltip.ts<br/><b>~40 lines</b><br/>show · hide · mousemove tracking"]
+                  CLICK["click-handler.ts<br/><b>~50 lines</b><br/>Alt+Click · structural context"]
+
+                  API --> CONN
+                  API --> SEL
+                  API --> WID
+                  API --> HIST
+                  API --> HOV
+                  API --> CLICK
+
+                  style API fill:#0f172a,stroke:#1e40af,color:#e2e8f0
+                  style CONN fill:#f0fdf4,stroke:#16a34a
+                  style SEL fill:#f0fdf4,stroke:#16a34a
+                  style WID fill:#f0fdf4,stroke:#16a34a
+                  style HIST fill:#f0fdf4,stroke:#16a34a
+                  style HOV fill:#f0fdf4,stroke:#16a34a
+                  style CLICK fill:#f0fdf4,stroke:#16a34a
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> The previous review collapsed two copies into one source of truth — good. But the resulting <code>browser-client.ts</code> is a 697-line god file. All 8 mutable state variables (<code>selections</code>, <code>ws</code>, <code>isAltDown</code>, <code>isProcessing</code>, <code>isConnected</code>, <code>lastSelections</code>, <code>submittedOids</code>, <code>widgetHost</code>) are in a single closure scope. Every function sees every variable. The <code>createWidget()</code> function alone is 200+ lines of CSS + HTML + event wiring inside a single function body. Applying the deletion test: if you delete this file, all the complexity reappears elsewhere because it cannot be split — there are no seams inside.</p>
+
+        <p class="text-slate-700"><strong>Solution:</strong> Extract logical groups into modules that export factory functions. The top-level IIFE becomes a thin orchestrator: create the connection, create the selection manager, create the widget, wire them together. Each sub-module closes over only the state it needs (locality). The orchestrator defines the seam: what flows between sub-modules via explicit parameters, not shared closure variables.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Locality:</strong> each module owns its state — e.g. <code>selection.ts</code> owns the <code>selections</code> array, not a shared closure</li>
+            <li><strong>Testability:</strong> extract <code>selection</code>, <code>history</code>, <code>hover-tooltip</code> as pure-ish functions testable with a DOM fixture. Currently zero behavioral tests for 697 lines</li>
+            <li><strong>Leverage:</strong> <code>history.ts</code> and <code>hover-tooltip.ts</code> have tiny interfaces — high depth. Widget render logic is isolated, not interleaved with WS reconnection</li>
+            <li><strong>Refactor safety:</strong> change CSS layout without touching selection persistence. Change reconnection strategy without touching widget rendering</li>
+          </ul>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded p-4">
+          <p class="text-sm text-amber-900"><strong>Constraint:</strong> All sub-modules are built by tsup into a single IIFE <code>dist/browser-client.js</code>. They cannot be separate files at runtime — they must be inlinable. The factory-function pattern (each module exports a function, tsup bundles the calls) works here. This is not about npm packages — it's about internal seams inside one build artifact.</p>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 2                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c2" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Eliminate <code>parseDataOid</code> duplication by splitting <code>data-oid.ts</code></h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Strong</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">dedup</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/data-oid.ts <span class="text-slate-500">parseDataOid + formatDataOid + hashProjectRoot (Node-only crypto import)</span></div>
+          <div>packages/react-plugin/src/browser-client.ts <span class="text-red-500">inline parseDataOid (~15 lines) — redundant copy, same logic</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before — split by build constraint</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="mermaid">
+                flowchart TD
+                  DOID["data-oid.ts<br/><b>66 lines</b>"]
+                  PARSE["parseDataOid()<br/><b>browser-safe</b>"]
+                  FMT["formatDataOid()<br/><b>browser-safe</b>"]
+                  HASH["hashProjectRoot()<br/><b>node:crypto — NOT browser-safe</b>"]
+                  BC["browser-client.ts<br/><b>inline parseDataOid()</b><br/><span style='color:#dc2626'>redundant copy</span>"]
+
+                  DOID --- PARSE
+                  DOID --- FMT
+                  DOID --- HASH
+                  BC -. "same logic<br/>can't import because<br/>hashProjectRoot pulls<br/>node:crypto into<br/>IIFE bundle" .-> PARSE
+
+                  style DOID fill:#fff7ed,stroke:#f59e0b
+                  style HASH fill:#fef2f2,stroke:#dc2626
+                  style BC fill:#fef2f2,stroke:#dc2626
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After — split by runtime target</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="mermaid">
+                flowchart TD
+                  SHARED["data-oid/shared.ts<br/><b>~40 lines</b><br/>parseDataOid · DataOidComponents<br/>formatDataOid"]
+                  NODE["data-oid/index.ts<br/><b>~26 lines</b><br/>re-exports + hashProjectRoot<br/><b>node:crypto</b>"]
+                  BC["browser-client.ts<br/><b>import { parseDataOid }</b><br/>from data-oid/shared"]
+
+                  SHARED --> NODE
+                  SHARED --> BC
+
+                  style SHARED fill:#0f172a,stroke:#1e40af,color:#e2e8f0
+                  style NODE fill:#f0fdf4,stroke:#16a34a
+                  style BC fill:#f0fdf4,stroke:#16a34a
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> <code>data-oid.ts</code> mixes browser-safe functions (<code>parseDataOid</code>, <code>formatDataOid</code>) with a Node-only function (<code>hashProjectRoot</code> → <code>node:crypto</code>). The browser client can't import from <code>data-oid.ts</code> because tsup would inline the crypto dependency into the IIFE bundle (which runs in the browser). So it re-implements <code>parseDataOid</code> inline — the same 15 lines, same logic, now maintained twice.</p>
+
+        <p class="text-slate-700"><strong>Solution:</strong> Split <code>data-oid.ts</code> into <code>data-oid/shared.ts</code> (browser-safe: <code>parseDataOid</code>, <code>formatDataOid</code>, <code>DataOidComponents</code>) and <code>data-oid/index.ts</code> (re-exports + <code>hashProjectRoot</code> with <code>node:crypto</code>). The browser client imports from <code>data-oid/shared</code> — tsup inlines only the browser-safe code. All other consumers import from <code>data-oid</code> unchanged.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Locality:</strong> one <code>parseDataOid</code>, one <code>DataOidComponents</code> type</li>
+            <li><strong>Delete ~15 lines</strong> of redundant inline code in browser-client.ts</li>
+            <li><strong>Future-proof:</strong> adding a new OID format requires editing one file, not two</li>
+            <li><strong>No package boundary change:</strong> existing <code>@pi-design/react-plugin/data-oid</code> export continues to work</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 3                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c3" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Fix <code>PiDesignClient</code> — dynamic import without effect guard</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-semibold">Strong</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">bug</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/next.tsx <span class="text-red-500">import() inside render body — no useEffect</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before</p>
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4 font-mono text-xs">
+              <pre>"use client";
+
+export function PiDesignClient() {
+  if (process.env.NODE_ENV !== "production") {
+    import("@pi-design/react-plugin/browser-client");
+  }
+  return null;
+}</pre>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After</p>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 font-mono text-xs">
+              <pre>"use client";
+import { useEffect } from "react";
+
+export function PiDesignClient() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      import("@pi-design/react-plugin/browser-client");
+    }
+  }, []);
+  return null;
+}</pre>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> The dynamic <code>import()</code> runs on every render of <code>PiDesignClient</code>, not just on mount. While the module is cached and won't re-fetch, a new <code>Promise</code> is created each time the parent re-renders. Worse, the <code>if (NODE_ENV)</code> guard evaluates on every render, creating a subtle timing difference between development and production. The component returns <code>null</code> and has no hook lifecycle — it's a pure side-effect component with no effect boundary.</p>
+
+        <p class="text-slate-700"><strong>Solution:</strong> Wrap the import in <code>useEffect(() => { ... }, [])</code>. Runs once on mount. Idiomatic React. No behavioral change — the IIFE guards against double-init with <code>__piDesignInit</code> — but eliminates the per-render import call and makes the intent clear.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Correctness:</strong> side effect runs once on mount, not per-render</li>
+            <li><strong>Clarity:</strong> <code>useEffect</code> signals "this component exists for its side effect" — React convention</li>
+            <li><strong>1 line changed</strong> — tiny fix, high clarity</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 4                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c4" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Shared WS protocol types across the wire</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">Worth exploring</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">type-safety</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/extension/src/server.ts <span class="text-slate-500">ClientMessage · ServerMessage (typed)</span></div>
+          <div>packages/react-plugin/src/browser-client.ts <span class="text-red-500">all messages sent as any — untyped</span></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">Before — server typed, client untyped</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="mermaid">
+                flowchart LR
+                  SRV["server.ts<br/><b>ClientMessage · ServerMessage</b><br/>discriminated unions · typed"]
+                  BC["browser-client.ts<br/><b>send({ type: 'design:connect', ... })</b><br/><span style='color:#dc2626'>all any-typed</span>"]
+                  SRV -- "JSON over WS" --> BC
+
+                  style SRV fill:#0f172a,stroke:#1e40af,color:#e2e8f0
+                  style BC fill:#fef2f2,stroke:#dc2626
+              </div>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-xs uppercase tracking-wider text-slate-500 font-semibold">After — shared types</p>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="mermaid">
+                flowchart LR
+                  PROTO["protocol.ts<br/><b>ClientMessage · ServerMessage</b><br/>browser-safe · shared"]
+                  SRV["server.ts<br/><b>imports from protocol.ts</b>"]
+                  BC["browser-client.ts<br/><b>imports from protocol.ts</b>"]
+
+                  PROTO --> SRV
+                  PROTO --> BC
+                  SRV -- "JSON over WS" --> BC
+
+                  style PROTO fill:#0f172a,stroke:#1e40af,color:#e2e8f0
+                  style SRV fill:#f0fdf4,stroke:#16a34a
+                  style BC fill:#f0fdf4,stroke:#16a34a
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> The WS protocol is the primary contract between extension and browser client. Currently, <code>server.ts</code> defines typed discriminated unions (<code>ClientMessage</code>, <code>ServerMessage</code>), but the browser client constructs and sends messages as plain objects with no type checking. If someone adds a new message type or changes a field name in the server, the client won't break at build time — only at runtime when messages are silently <code>catch</code>'d away.</p>
+
+        <p class="text-slate-700"><strong>Solution:</strong> Extract protocol types into a browser-safe <code>protocol.ts</code> (pure TypeScript interfaces, no Node imports). Both server and browser-client import from it. The browser client's <code>sendMessage</code> function gets typed. When the protocol changes, both sides fail to compile if they drift.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Leverage:</strong> protocol types are the deep seam — both sides depend on them</li>
+            <li><strong>Compile-time drift detection:</strong> adding/changing a message type breaks both builds, not just one</li>
+            <li><strong>AI-navigability:</strong> "what messages does the client send?" → look at the protocol, not grep through untyped send calls</li>
+          </ul>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 rounded p-4">
+          <p class="text-sm text-amber-900"><strong>Cost:</strong> extra file + export path. The types add zero runtime code — they're erased by the IIFE build. But they do create a new import the browser-client build must resolve. If Candidate 2 is adopted (splitting data-oid.ts), this follows the same pattern: a browser-safe sub-module that tsup inlines.</p>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- CANDIDATE 5                                                               -->
+      <!-- ========================================================================= -->
+      <article id="c5" class="candidate-card space-y-6">
+        <div class="flex items-center gap-3">
+          <h2 class="text-2xl font-bold">Add WS reconnection backoff + max attempts</h2>
+        </div>
+        <div class="flex gap-2 text-xs">
+          <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-semibold">Worth exploring</span>
+          <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">robustness</span>
+        </div>
+        <div class="font-mono text-sm text-slate-600 bg-stone-100 rounded p-3 space-y-1">
+          <div>packages/react-plugin/src/browser-client.ts <span class="text-red-500">ws.onclose → setTimeout(connectWS, 2000) — fixed 2s retry, infinite, no backoff</span></div>
+        </div>
+
+        <p class="text-slate-700"><strong>Problem:</strong> On WS close, the browser client retries every 2 seconds forever with no backoff. If the design mode server is stopped, this creates an infinite stream of failed connection attempts — logged to the console, consuming resources, and never resolving. The user sees a "Connection lost" error that never clears.</p>
+
+        <p class="text-slate-700"><strong>Solution:</strong> Exponential backoff (2s → 4s → 8s → 16s, cap at 30s) with a max attempt count (e.g. 10). After exhausting retries, show a permanent "Disconnected — run /design to restart" message and stop retrying. The user can still manually reload the page.</p>
+
+        <div class="bg-emerald-50 rounded p-4 space-y-1">
+          <p class="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">Wins</p>
+          <ul class="text-sm text-emerald-900 space-y-1 list-disc list-inside">
+            <li><strong>Locality:</strong> reconnection strategy is in one place (the <code>connectWS</code> function) instead of being implicit in the retry loop</li>
+            <li><strong>Resource hygiene:</strong> no infinite retry storm when design mode is off</li>
+            <li><strong>User experience:</strong> clear terminal state instead of perpetual "will retry"</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- ========================================================================= -->
+      <!-- PREVIOUS REVIEW CONTEXT                                                   -->
+      <!-- ========================================================================= -->
+      <section id="prev-context" class="space-y-4">
+        <h2 class="text-2xl font-bold">Previous review context (2026-06-11)</h2>
+        <div class="bg-white rounded-lg border border-slate-200 p-6 text-sm space-y-4">
+          <div>
+            <h3 class="font-bold text-slate-700 mb-1">✅ Resolved: Collapse browser client into one source of truth</h3>
+            <p class="text-slate-600">The 720-line JS template string in <code>vite-plugin.ts</code> has been replaced. <code>browser-client.ts</code> is now the single source. Vite plugin reads <code>dist/browser-client.js</code> via <code>readFileSync()</code>. Next.js imports via <code>next.tsx</code>. All 6 drift bugs from the previous review eliminated.</p>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-700 mb-1">✅ Resolved: Unify <code>parseDataOid</code> return type</h3>
+            <p class="text-slate-600">The browser-client now returns the canonical <code>DataOidComponents</code> shape with all 5 fields. The <code>marker</code>/<code>relativeMarker</code> variant in vite-plugin.ts is gone. SWC formats handled. Three-way return type split reduced to two (inline browser copy + canonical <code>data-oid.ts</code>).</p>
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-700 mb-1">✅ Resolved: Consolidate <code>data-oid.ts</code> across packages</h3>
+            <p class="text-slate-600">The extension no longer has its own <code>data-oid.ts</code>. It imports from <code>@pi-design/react-plugin/data-oid</code>, inlined by tsup at build time. One copy remains.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- TOP RECOMMENDATION                                                        -->
+      <!-- ========================================================================= -->
+      <section id="top-recommendation" class="space-y-4">
+        <h2 class="text-2xl font-bold">Top recommendation</h2>
+        <div class="bg-slate-900 text-white rounded-xl p-8 space-y-4">
+          <h3 class="text-xl font-bold text-emerald-300">Start with Candidate 3 (PiDesignClient fix), then Candidate 2 (data-oid split)</h3>
+          <p class="text-slate-300">Candidate 3 is a 1-line bug fix that removes a per-render side effect — ship it now. Candidate 2 is the next logical step because it removes the remaining parseDataOid duplication and sets up the pattern (browser-safe sub-modules) that Candidates 1 and 4 build on.</p>
+          <p class="text-slate-300">Candidate 1 (decompose the god file) is the highest-value structural change but also the largest refactor. It should follow Candidates 2 and 3 because: (a) Candidate 2 creates the <code>data-oid/shared</code> pattern, so browser-client already has one fewer inline function; (b) decomposing a 697-line file is easier when it has clear import boundaries already established.</p>
+          <p class="text-slate-300">Candidate 4 (shared protocol types) naturally follows Candidate 2 — same browser-safe sub-module pattern. Candidate 5 (reconnection backoff) is independent and can be done anytime.</p>
+          <div class="mt-4 text-xs text-slate-500 space-y-1">
+            <div>Order: <span class="text-emerald-300">C3</span> (1-line fix) → <span class="text-emerald-300">C2</span> (data-oid split) → <span class="text-amber-300">C5</span> (backoff) → <span class="text-emerald-300">C4</span> (protocol types) → <span class="text-emerald-300">C1</span> (decompose god file)</span></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </body>
+</html>
