@@ -4,15 +4,32 @@
 
 Click elements in your browser, describe changes, and the LLM edits your source code with instant HMR preview. A Cursor Design Mode–style workflow for terminal-based React/Next.js development with [Pi](https://github.com/earendil-works/pi-coding-agent).
 
+## Overview
+
+Pi Design Mode has two parts you install separately:
+
+| Part | What it does | Install how |
+|------|-------------|------------|
+| **Pi extension** | `/design` command, WebSocket server | `pi install git:github.com/tech4ge/Pi-Design-Mode` |
+| **React plugin** | Browser client, build transforms, Next.js component | `npm install github:tech4ge/Pi-Design-Mode` |
+
+You need **both** — the extension runs in Pi, the plugin runs in your app.
+
 ## Quick Start: Vite + React
 
-**1. Install the plugin**
+**1. Install the Pi extension**
 
 ```bash
-npm install @pi-design/react-plugin
+pi install git:github.com/tech4ge/Pi-Design-Mode
 ```
 
-**2. Add to your Vite config**
+**2. Install the react plugin in your project**
+
+```bash
+npm install github:tech4ge/Pi-Design-Mode
+```
+
+**3. Add to your Vite config**
 
 ```ts
 // vite.config.ts
@@ -26,7 +43,7 @@ export default defineConfig({
 });
 ```
 
-**3. Start designing**
+**4. Start designing**
 
 ```bash
 # In Pi, run:
@@ -37,13 +54,19 @@ Open your app in the browser. The Pi Design widget appears automatically. Alt+Cl
 
 ## Quick Start: Next.js
 
-**1. Install the plugin and SWC source tracker**
+**1. Install the Pi extension**
 
 ```bash
-npm install @pi-design/react-plugin swc-plugin-react-source-string
+pi install git:github.com/tech4ge/Pi-Design-Mode
 ```
 
-**2. Configure the SWC plugin**
+**2. Install the react plugin and SWC source tracker in your project**
+
+```bash
+npm install github:tech4ge/Pi-Design-Mode swc-plugin-react-source-string
+```
+
+**3. Configure the SWC plugin**
 
 ```ts
 // next.config.ts
@@ -56,7 +79,7 @@ const nextConfig: NextConfig = {
 };
 ```
 
-**3. Add the client component to your root layout**
+**4. Add the client component to your root layout**
 
 ```tsx
 // app/layout.tsx
@@ -74,31 +97,12 @@ export default function RootLayout({ children }) {
 }
 ```
 
-**4. Start designing**
+**5. Start designing**
 
 ```bash
 # In Pi, run:
 /design
 ```
-
-## Installing from GitHub
-
-You can install directly from the GitHub repository without publishing to npm:
-
-```bash
-# Latest main branch
-npm install github:tech4ge/Pi-Design-Mode
-
-# Specific branch or tag
-npm install github:tech4ge/Pi-Design-Mode#feature/my-branch
-
-# Specific commit
-npm install github:tech4ge/Pi-Design-Mode#a1b2c3d
-```
-
-This uses npm's [GitHub dependency](https://docs.npmjs.com/cli/v10/commands/npm-install#github-repository) support. npm will clone the repo and run `npm install` in each workspace, then resolve the packages from the monorepo.
-
-> **Note:** The `prepare` script runs `npm run build` automatically on install, so the built `dist/` files are generated for you. No manual build step needed.
 
 ## How It Works
 
@@ -149,7 +153,7 @@ Override the WebSocket port (default: 9481). Set before the client script loads:
 The project is a monorepo with two packages:
 
 - **`@pi-design/react-plugin`** — Vite plugin, Next.js component, browser client, and source transform. Published to npm.
-- **`@pi-design/extension`** — Pi extension providing the `/design` command and WebSocket server. Installed locally into Pi.
+- **`@pi-design/extension`** — Pi extension providing the `/design` command and WebSocket server. Installed via `pi install`.
 
 The browser client (`packages/react-plugin/src/browser-client.ts`) is built as a single IIFE and injected into the page at runtime. Business logic is extracted into testable modules under `browser-client/`:
 
@@ -188,17 +192,6 @@ cd packages/react-plugin && npm test
 # Extension tests (21)
 cd packages/extension && npm test
 ```
-
-### Install the extension locally
-
-Copy the built extension to Pi's extensions directory:
-
-```bash
-cp -r packages/extension/dist ~/.pi/agent/extensions/pi-design-mode/dist
-cp packages/extension/package.json ~/.pi/agent/extensions/pi-design-mode/
-```
-
-Then reload Pi with `/reload`.
 
 ### Verify npm package contents
 
