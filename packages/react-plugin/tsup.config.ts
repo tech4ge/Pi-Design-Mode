@@ -8,6 +8,7 @@ export default defineConfig([
       "vite-plugin": "src/vite-plugin.ts",
       "data-oid": "src/data-oid/index.ts",
       "data-oid-shared": "src/data-oid/shared.ts",
+      "protocol": "src/protocol.ts",
       transform: "src/transform.ts",
       next: "src/next.tsx",
     },
