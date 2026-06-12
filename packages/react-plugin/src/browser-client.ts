@@ -127,10 +127,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
     if (found > 0) {
       render();
-      if (found >= saved.length) {
-        sessionStorage.removeItem("pi-design-selections");
-        return;
-      }
+      if (found >= saved.length) return;
     }
 
     // Some elements not in DOM yet — watch for them via MutationObserver
@@ -160,7 +157,6 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0,
       );
       if (remaining.length === 0) {
-        sessionStorage.removeItem("pi-design-selections");
         restoreObserver?.disconnect();
         restoreObserver = null;
       }
