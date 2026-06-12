@@ -68,6 +68,8 @@ npm install github:tech4ge/Pi-Design-Mode swc-plugin-react-source-string
 
 **3. Configure the SWC plugin**
 
+Next.js uses [SWC](https://swc.rs/) (not Babel) for transforms, so the Vite/Babel plugin that injects `data-oid` attributes won't work. Instead, we use [swc-plugin-react-source-string](https://github.com/tanchu/swc-plugin-react-source) which adds `data-source` attributes to JSX elements at compile time. Pi Design Mode reads these to locate elements in your source code.
+
 ```ts
 // next.config.ts
 const nextConfig: NextConfig = {
@@ -106,7 +108,7 @@ export default function RootLayout({ children }) {
 
 ## How It Works
 
-1. **Data attributes** — The Vite plugin (Babel) or Next.js SWC plugin injects `data-oid` attributes onto every JSX element during development, encoding the source file location.
+1. **Data attributes** — The Vite plugin (Babel) or Next.js SWC plugin injects source-location attributes onto every JSX element during development, encoding the source file path and line number.
 
 2. **WebSocket server** — `/design` starts a WS server on port 9481 (configurable via `window.__PI_DESIGN_PORT`).
 
@@ -152,7 +154,7 @@ Override the WebSocket port (default: 9481). Set before the client script loads:
 
 The project is a monorepo with two packages:
 
-- **`@pi-design/react-plugin`** — Vite plugin, Next.js component, browser client, and source transform. Published to npm.
+- **`@pi-design/react-plugin`** — Vite plugin, Next.js component, browser client, and source transform.
 - **`@pi-design/extension`** — Pi extension providing the `/design` command and WebSocket server. Installed via `pi install`.
 
 The browser client (`packages/react-plugin/src/browser-client.ts`) is built as a single IIFE and injected into the page at runtime. Business logic is extracted into testable modules under `browser-client/`:
