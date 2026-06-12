@@ -7,6 +7,9 @@ import { createSelectionManager } from "./browser-client/selection.js";
 import { buildSelectionData } from "./browser-client/click-handler.js";
 import { routeServerMessage } from "./browser-client/connection.js";
 import { createWidgetState } from "./browser-client/widget.js";
+import { escapeHtml, getSelector, computeStructuralContext as computeStructuralContextImpl, getComputedStyles, getBoundingBox } from "./browser-client/utils.js";
+import { applyHighlight as applyHighlightImpl, clearHighlight as clearHighlightImpl, reapplyAllHighlights as reapplyAllHighlightsImpl } from "./browser-client/highlight.js";
+import { WIDGET_CSS, WIDGET_HTML } from "./browser-client/widget-template.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -48,53 +51,11 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   // parseDataOid is imported from data-oid/shared at the top of this module.
   // tsup inlines it into the IIFE — no runtime import.
 
-  function getSelector(element: Element): string {
-    if (element.id) return "#" + element.id;
-    return element.tagName.toLowerCase();
-  }
-
   function computeStructuralContext() {
-    if (selectionMod.getSelections().length <= 1) return { siblings: [] as string[][], sameComponent: [] as string[][] };
-    const oids = selectionMod.getSelections().map((s) => s.dataOid);
-    const parentMap = new Map<Element, string[]>();
-    for (const oid of oids) {
-      const el = findByOid(oid);
-      if (el && el.parentElement) {
-        if (!parentMap.has(el.parentElement)) parentMap.set(el.parentElement, []);
-        parentMap.get(el.parentElement)!.push(oid);
-      }
-    }
-    const siblings: string[][] = [];
-    parentMap.forEach((group) => { if (group.length > 1) siblings.push(group); });
-    const fileMap: Record<string, string[]> = {};
-    for (const oid of oids) {
-      const parsed = parseDataOid(oid);
-      const fileKey = parsed ? parsed.filePath : oid;
-      if (!fileMap[fileKey]) fileMap[fileKey] = [];
-      fileMap[fileKey].push(oid);
-    }
-    const sameComponent: string[][] = [];
-    for (const key of Object.keys(fileMap)) {
-      if (fileMap[key].length > 1) sameComponent.push(fileMap[key]);
-    }
-    return { siblings, sameComponent };
-  }
-
-  function escapeHtml(s: string) {
-    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-
-  function getComputedStyles(element: Element) {
-    const styles = window.getComputedStyle(element);
-    const relevant = ["background-color", "color", "font-size", "font-family", "padding", "margin", "border-radius", "display", "width", "height", "gap", "flex-direction"];
-    const result: Record<string, string> = {};
-    for (const prop of relevant) result[prop] = styles.getPropertyValue(prop);
-    return result;
-  }
-
-  function getBoundingBox(element: Element) {
-    const rect = element.getBoundingClientRect();
-    return { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) };
+    return computeStructuralContextImpl(
+      selectionMod.getSelections().map((s) => s.dataOid),
+      findByOid,
+    );
   }
 
   function persistSelections() {
@@ -231,33 +192,15 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   // --- Selection management ---
 
   function applyHighlight(dataOid: string, color: string) {
-    const el = findByOid(dataOid);
-    if (el) {
-      (el as HTMLElement).style.outline = `2px solid ${color}`;
-      (el as HTMLElement).style.outlineOffset = "2px";
-      el.setAttribute("data-pi-highlighted", "true");
-    }
+    applyHighlightImpl(dataOid, color, findByOid);
   }
 
   function clearHighlight(dataOid: string) {
-    const el = findByOid(dataOid);
-    if (el) {
-      (el as HTMLElement).style.outline = "";
-      (el as HTMLElement).style.outlineOffset = "";
-      el.removeAttribute("data-pi-highlighted");
-    }
+    clearHighlightImpl(dataOid, findByOid);
   }
 
   function reapplyAllHighlights() {
-    const highlighted = document.querySelectorAll("[data-pi-highlighted]");
-    for (const el of highlighted) {
-      (el as HTMLElement).style.outline = "";
-      (el as HTMLElement).style.outlineOffset = "";
-      el.removeAttribute("data-pi-highlighted");
-    }
-    for (let i = 0; i < selectionMod.getSelections().length; i++) {
-      applyHighlight(selectionMod.getSelections()[i].dataOid, SELECTION_COLORS[i % SELECTION_COLORS.length]);
-    }
+    reapplyAllHighlightsImpl(selectionMod.getSelections(), SELECTION_COLORS, findByOid, applyHighlightImpl);
   }
 
   // --- Selection module (instantiated after highlight functions) ---
@@ -324,67 +267,11 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     shadow = widgetHost.attachShadow({ mode: "open" });
 
     const style = document.createElement("style");
-    style.textContent = `
-      :host { all: initial; font-family: system-ui, -apple-system, sans-serif; }
-      .widget { background: #1e1e2e; border: 1px solid #45475a; border-radius: 12px; padding: 12px; min-width: 300px; max-width: 420px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); color: #cdd6f4; font-size: 13px; transition: min-width 0.2s ease; position: relative; }
-      .widget.expanded { min-width: 380px; }
-      .header { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
-      .header .title { flex: 1; display: flex; align-items: center; gap: 6px; }
-      .close-btn { background: none; border: none; color: #6c7086; cursor: pointer; padding: 2px 6px; font-size: 16px; border-radius: 4px; line-height: 1; }
-      .close-btn:hover { color: #cdd6f4; background: #313244; }
-      .dot { width: 8px; height: 8px; border-radius: 50%; background: #f38ba8; display: inline-block; }
-      .dot.connected { background: #a6e3a1; }
-      .selections { max-height: 180px; overflow-y: auto; margin-bottom: 8px; }
-      .color-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin-right: 3px; }
-      .selection-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #313244; border-radius: 6px; margin-bottom: 4px; font-size: 12px; cursor: pointer; transition: background 0.1s; }
-      .selection-item:hover { background: #45475a; }
-      .selection-item .tag { color: #89b4fa; font-family: monospace; }
-      .selection-item .file { color: #a6adc8; flex: 1; margin-left: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .selection-item .remove { background: none; border: none; color: #f38ba8; cursor: pointer; padding: 0 4px; font-size: 14px; }
-      .selection-item .remove:hover { color: #eba0ac; }
-      .input-row { display: flex; gap: 6px; align-items: flex-end; }
-      .input-row textarea { flex: 1; background: #313244; border: 1px solid #45475a; border-radius: 6px; padding: 6px 8px; color: #cdd6f4; font-size: 13px; outline: none; resize: none; overflow-y: auto; max-height: 120px; line-height: 1.4; font-family: inherit; }
-      .input-row textarea:focus { border-color: #89b4fa; }
-      .submit-btn { background: #89b4fa; color: #1e1e2e; border: none; border-radius: 6px; padding: 6px 12px; font-weight: 600; cursor: pointer; font-size: 13px; }
-      .submit-btn:hover { background: #b4d0fb; }
-      .submit-btn:disabled { background: #45475a; color: #6c7086; cursor: not-allowed; }
-      .processing { color: #f9e2af; font-size: 12px; text-align: center; margin-top: 6px; }
-      .processing .cancel { background: none; border: none; color: #f9e2af; cursor: pointer; text-decoration: underline; font-size: 12px; padding: 0; margin-left: 4px; }
-      .error-banner { background: #45475a; color: #f38ba8; font-size: 12px; padding: 6px 8px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
-      .hint { color: #6c7086; font-size: 11px; margin-top: 6px; }
-      .quick-actions { display: none; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
-      .qa-btn { background: #313244; color: #cdd6f4; border: 1px solid #45475a; border-radius: 12px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
-      .qa-btn:hover { background: #45475a; border-color: #89b4fa; }
-      .qa-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-      .history-panel { position: absolute; top: 8px; right: calc(100% - 1px); bottom: 8px; width: 200px; background: #1e1e2e; border: 1px solid #45475a; border-right: none; border-radius: 12px 0 0 12px; padding: 8px 0; overflow-y: auto; display: none; flex-direction: column; box-shadow: -4px 4px 16px rgba(0,0,0,0.2); }
-      .history-panel-title { padding: 4px 10px 8px; font-size: 11px; color: #6c7086; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-      .history-item { padding: 6px 10px; font-size: 12px; line-height: 1.4; color: #cdd6f4; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
-      .history-item:hover { background: #313244; }
-      .history-clear { padding: 8px 10px; font-size: 11px; color: #f38ba8; cursor: pointer; text-align: center; border-top: 1px solid #313244; margin-top: auto; }
-      .history-clear:hover { background: #313244; }
-    `;
+    style.textContent = WIDGET_CSS;
 
     const widget = document.createElement("div");
     widget.className = "widget";
-    widget.innerHTML = `
-      <div class="header"><div class="title"><span class="dot"></span> Pi Design Mode</div><button class="close-btn" title="Close design mode">✕</button></div>
-      <div class="error-banner" style="display:none">⚠️ <span class="error-msg"></span></div>
-      <div class="selections"></div>
-      <div class="input-row">
-        <textarea rows="1" placeholder="Describe the change..."></textarea>
-        <button class="submit-btn">Submit</button>
-      </div>
-      <div class="quick-actions">
-        <button class="qa-btn" data-action="center">Center</button>
-        <button class="qa-btn" data-action="fullwidth">Full width</button>
-        <button class="qa-btn" data-action="equal-spacing" data-multi="true">Equal spacing</button>
-        <button class="qa-btn" data-action="same-size" data-multi="true">Same size</button>
-        <button class="qa-btn" data-action="revert">Revert</button>
-      </div>
-      <div class="processing" style="display:none">⏳ Processing...<button class="cancel" style="display:none">Cancel</button></div>
-      <div class="hint">Alt+Click to select · Alt+R recall · Esc to clear</div>
-      <div class="history-panel" style="display:none"><div class="history-panel-title">Recent</div></div>
-    `;
+    widget.innerHTML = WIDGET_HTML;
     shadow.appendChild(style);
     shadow.appendChild(widget);
 
