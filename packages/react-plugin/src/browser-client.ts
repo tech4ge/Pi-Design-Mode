@@ -1,4 +1,5 @@
 import { parseDataOid } from "./data-oid/shared.js";
+import { reconnectPolicy } from "./reconnect-policy.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -23,6 +24,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
   let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
   let restoreObserver: MutationObserver | null = null;
+  let reconnectAttempt = 0;
 
   document.addEventListener("keydown", (e: KeyboardEvent) => { if (e.key === "Alt") isAltDown = true; });
   document.addEventListener("keyup", (e: KeyboardEvent) => { if (e.key === "Alt") { isAltDown = false; hideHoverTooltip(); } });
@@ -181,6 +183,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     ws = new WebSocket(`ws://localhost:${WS_PORT}`);
     ws.onopen = () => {
       isConnected = true;
+      reconnectAttempt = 0; // Reset on successful connection
       sendMessage.send({ type: "design:connect", url: window.location.href, title: document.title });
       if ((window as any).__piDesignWidget) {
         (window as any).__piDesignWidget.updateConnection(true);
@@ -190,11 +193,20 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     };
     ws.onclose = () => {
       isConnected = false;
+      const policy = reconnectPolicy(reconnectAttempt);
+      if ("giveUp" in policy) {
+        if ((window as any).__piDesignWidget) {
+          (window as any).__piDesignWidget.updateConnection(false);
+          (window as any).__piDesignWidget.showError("Disconnected — run /design to restart", true);
+        }
+        return;
+      }
+      reconnectAttempt++;
       if ((window as any).__piDesignWidget) {
         (window as any).__piDesignWidget.updateConnection(false);
-        (window as any).__piDesignWidget.showError("Connection lost — will retry");
+        (window as any).__piDesignWidget.showError("Connection lost — retrying");
       }
-      setTimeout(() => connectWS(sendMessage), 2000);
+      setTimeout(() => connectWS(sendMessage), policy.delay);
     };
     ws.onerror = () => {};
     ws.onmessage = (event) => {
@@ -585,12 +597,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
   }
 
-  function showError(message: string) {
+  function showError(message: string, persistent: boolean = false) {
     if (!errorBanner || !errorMsg) return;
     errorMsg.textContent = message;
     errorBanner.style.display = "flex";
     if (errorBannerTimer) clearTimeout(errorBannerTimer);
-    errorBannerTimer = setTimeout(() => { errorBanner.style.display = "none"; }, 10000);
+    if (!persistent) {
+      errorBannerTimer = setTimeout(() => { errorBanner.style.display = "none"; }, 10000);
+    }
   }
 
   function showHistory() {
