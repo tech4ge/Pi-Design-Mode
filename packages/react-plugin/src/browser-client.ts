@@ -5,6 +5,7 @@ import { createHistory } from "./browser-client/history.js";
 import { createHoverTooltip } from "./browser-client/hover-tooltip.js";
 import { createSelectionManager } from "./browser-client/selection.js";
 import { buildSelectionData } from "./browser-client/click-handler.js";
+import { routeServerMessage } from "./browser-client/connection.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -211,22 +212,20 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   }
 
   function handleServerMessage(message: ServerMessage, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
-    switch (message.type) {
-      case "design:mode:off": disconnect(sendMessage); break;
-      case "design:highlight": highlightElement(message.dataOid); break;
-      case "design:processing":
-        if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.setProcessing(true);
-        break;
-      case "design:done":
+    routeServerMessage(message, {
+      onDisconnect: () => disconnect(sendMessage),
+      onHighlight: (oid) => highlightElement(oid),
+      onProcessing: (v) => { if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.setProcessing(v); },
+      onDone: () => {
         if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.setProcessing(false);
         if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.flashEditedElements();
         if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.showSuccess();
-        break;
-      case "design:error":
+      },
+      onError: (msg) => {
         if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.setProcessing(false);
-        if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.showError(message.message || "Unknown error");
-        break;
-    }
+        if ((window as any).__piDesignWidget) (window as any).__piDesignWidget.showError(msg);
+      },
+    });
   }
 
   // --- Selection management ---
