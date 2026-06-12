@@ -3,6 +3,7 @@ import { reconnectPolicy } from "./reconnect-policy.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { createHistory } from "./browser-client/history.js";
 import { createHoverTooltip } from "./browser-client/hover-tooltip.js";
+import { createSelectionManager } from "./browser-client/selection.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -21,13 +22,15 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   let isAltDown = false;
   let isConnected = false;
   let isProcessing = false;
-  let selections: any[] = [];
   let lastSelections: any[] = [];
   let submittedOids: string[] = [];
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
   let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
   let restoreObserver: MutationObserver | null = null;
   let reconnectAttempt = 0;
+
+  // Forward-declared — instantiated after highlight/render functions are defined
+  let selectionMod: ReturnType<typeof createSelectionManager>;
 
   document.addEventListener("keydown", (e: KeyboardEvent) => { if (e.key === "Alt") isAltDown = true; });
   document.addEventListener("keyup", (e: KeyboardEvent) => { if (e.key === "Alt") { isAltDown = false; hideHoverTooltip(); } });
@@ -49,8 +52,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   }
 
   function computeStructuralContext() {
-    if (selections.length <= 1) return { siblings: [] as string[][], sameComponent: [] as string[][] };
-    const oids = selections.map((s) => s.dataOid);
+    if (selectionMod.getSelections().length <= 1) return { siblings: [] as string[][], sameComponent: [] as string[][] };
+    const oids = selectionMod.getSelections().map((s) => s.dataOid);
     const parentMap = new Map<Element, string[]>();
     for (const oid of oids) {
       const el = findByOid(oid);
@@ -94,7 +97,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   function persistSelections() {
     try {
-      if (selections.length > 0) sessionStorage.setItem("pi-design-selections", JSON.stringify(selections));
+      if (selectionMod.getSelections().length > 0) sessionStorage.setItem("pi-design-selections", JSON.stringify(selectionMod.getSelections()));
       else sessionStorage.removeItem("pi-design-selections");
     } catch {}
   }
@@ -104,7 +107,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       const saved = sessionStorage.getItem("pi-design-selections");
       if (!saved) return;
       const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed) || parsed.length === 0 || selections.length > 0) return;
+      if (!Array.isArray(parsed) || parsed.length === 0 || selectionMod.getSelections().length > 0) return;
 
       // First pass — restore what we can now
       applyRestoredSelections(parsed);
@@ -114,11 +117,11 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   function applyRestoredSelections(saved: any[]) {
     let found = 0;
     for (const s of saved) {
-      if (selections.findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
+      if (selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
       const el = findByOid(s.dataOid);
       if (!el) continue;
-      selections.push(s);
-      applyHighlight(s.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
+      selectionMod.getSelections().push(s);
+      applyHighlight(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
       found++;
     }
     if (found > 0) {
@@ -128,29 +131,29 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
     // Some elements not in DOM yet — watch for them via MutationObserver
     const missingOids = saved.filter(
-      (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0,
+      (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0,
     );
     if (missingOids.length === 0) return;
 
     restoreObserver = new MutationObserver(() => {
       const stillMissing = missingOids.filter(
-        (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0 && !findByOid(s.dataOid),
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0 && !findByOid(s.dataOid),
       );
       if (stillMissing.length === missingOids.length) return; // no change yet
 
       // At least one element appeared — try restoring again
       const nowFound = missingOids.filter(
-        (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0 && findByOid(s.dataOid) !== null,
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0 && findByOid(s.dataOid) !== null,
       );
       for (const s of nowFound) {
-        selections.push(s);
-        applyHighlight(s.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
+        selectionMod.getSelections().push(s);
+        applyHighlight(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
       }
       render();
 
       // All restored?
       const remaining = missingOids.filter(
-        (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0,
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0,
       );
       if (remaining.length === 0) {
         restoreObserver?.disconnect();
@@ -252,39 +255,32 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       (el as HTMLElement).style.outlineOffset = "";
       el.removeAttribute("data-pi-highlighted");
     }
-    for (let i = 0; i < selections.length; i++) {
-      applyHighlight(selections[i].dataOid, SELECTION_COLORS[i % SELECTION_COLORS.length]);
+    for (let i = 0; i < selectionMod.getSelections().length; i++) {
+      applyHighlight(selectionMod.getSelections()[i].dataOid, SELECTION_COLORS[i % SELECTION_COLORS.length]);
     }
   }
 
+  // --- Selection module (instantiated after highlight functions) ---
+  selectionMod = createSelectionManager({
+    applyHighlight: (dataOid: string) => applyHighlight(dataOid, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
+    clearHighlight,
+    reapplyAllHighlights,
+    persistSelections,
+  });
+
   function addSelection(sel: any, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
-    const existing = selections.findIndex((s) => s.dataOid === sel.dataOid);
-    if (existing !== -1) {
-      removeSelection(sel.dataOid, sendMessage);
-      return false;
-    }
-    selections.push(sel);
-    applyHighlight(sel.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
-    persistSelections();
-    render();
-    return true;
+    selectionMod.setSendMessage(sendMessage);
+    return selectionMod.addSelection(sel);
   }
 
   function removeSelection(dataOid: string, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
-    selections = selections.filter((s) => s.dataOid !== dataOid);
-    clearHighlight(dataOid);
-    sendMessage.send({ type: "design:deselect", dataOid });
-    persistSelections();
-    reapplyAllHighlights();
-    render();
+    selectionMod.setSendMessage(sendMessage);
+    selectionMod.removeSelection(dataOid);
   }
 
   function clearAllSelections(sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
-    for (const sel of selections) clearHighlight(sel.dataOid);
-    selections = [];
-    sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
-    persistSelections();
-    render();
+    selectionMod.setSendMessage(sendMessage);
+    selectionMod.clearAllSelections();
   }
 
   function flashElement(dataOid: string) {
@@ -461,22 +457,22 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     });
 
     submitBtn.addEventListener("click", () => {
-      if (selections.length === 0 || isProcessing) return;
+      if (selectionMod.getSelections().length === 0 || isProcessing) return;
       const instruction = input.value.trim();
       if (!instruction) return;
   historyMod.saveHistory(instruction);
       const structuralContext = computeStructuralContext();
-      submittedOids = selections.map((s) => s.dataOid);
+      submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
       sendMessage.send({
         type: "design:submit",
-        selections: selections.map((s) => s.dataOid),
+        selections: selectionMod.getSelections().map((s) => s.dataOid),
         instruction,
         structuralContext,
       });
       input.value = "";
       input.style.height = "auto";
       isProcessing = true;
-      lastSelections = selections.slice();
+      lastSelections = selectionMod.getSelections().slice();
       processingEl.style.display = "block";
       render();
     });
@@ -500,8 +496,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         cancelBtn.style.display = "none";
         if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
         if (value) {
-          submittedOids = selections.map((s) => s.dataOid);
-          for (const sel of selections) clearHighlight(sel.dataOid);
+          submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+          for (const sel of selectionMod.getSelections()) clearHighlight(sel.dataOid);
           processingTimer = setTimeout(() => {
             if (isProcessing) cancelBtn.style.display = "inline";
           }, 60000);
@@ -519,7 +515,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
           dot.className = "dot" + (connected ? " connected" : "");
           dot.title = connected ? "Connected to Pi" : "Disconnected — changes won't be sent";
         }
-        if (submitBtn) submitBtn.disabled = !connected || selections.length === 0 || isProcessing;
+        if (submitBtn) submitBtn.disabled = !connected || selectionMod.getSelections().length === 0 || isProcessing;
         if (input) input.disabled = !connected || isProcessing;
         if (connected && errorBanner) errorBanner.style.display = "none";
         render();
@@ -534,15 +530,15 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (!shadow) return;
     dot.className = "dot" + (isConnected ? " connected" : "");
     dot.title = isConnected ? "Connected to Pi" : "Disconnected — changes won't be sent";
-    submitBtn.disabled = selections.length === 0 || isProcessing;
+    submitBtn.disabled = selectionMod.getSelections().length === 0 || isProcessing;
     input.disabled = isProcessing;
-    quickActions.style.display = selections.length > 0 && !isProcessing ? "flex" : "none";
-    qaMultiBtns.forEach((btn) => { (btn as HTMLElement).style.display = selections.length >= 2 ? "" : "none"; });
+    quickActions.style.display = selectionMod.getSelections().length > 0 && !isProcessing ? "flex" : "none";
+    qaMultiBtns.forEach((btn) => { (btn as HTMLElement).style.display = selectionMod.getSelections().length >= 2 ? "" : "none"; });
     processingEl.style.display = isProcessing ? "block" : "none";
 
     selectionsContainer.innerHTML = "";
-    for (let i = 0; i < selections.length; i++) {
-      const sel = selections[i];
+    for (let i = 0; i < selectionMod.getSelections().length; i++) {
+      const sel = selectionMod.getSelections()[i];
       const color = SELECTION_COLORS[i % SELECTION_COLORS.length];
       const parsed = parseDataOid(sel.dataOid);
       const location = parsed ? `${parsed.filePath}:${parsed.line}` : sel.dataOid;
@@ -553,10 +549,12 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       item.addEventListener("click", () => flashElement(sel.dataOid));
       selectionsContainer.appendChild(item);
     }
-    if (selections.length === 0) {
+    if (selectionMod.getSelections().length === 0) {
       selectionsContainer.innerHTML = '<div style="color:#6c7086;font-size:12px;padding:4px 0;">No element selected</div>';
     }
   }
+
+  selectionMod.setRender(render);
 
   function flashEditedElements() {
     if (submittedOids.length === 0) return;
@@ -569,7 +567,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         (el as HTMLElement).style.outlineOffset = "2px";
         ((element: Element, dataOid: string) => {
           setTimeout(() => {
-            const selIdx = selections.findIndex((s) => s.dataOid === dataOid);
+            const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === dataOid);
             if (selIdx >= 0) {
               applyHighlight(dataOid, SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
             } else {
@@ -707,7 +705,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
       clearAllSelections(sendMessage);
     }
-    if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && (window as any).__piDesignWidget && selections.length === 0 && lastSelections.length > 0 && !isProcessing) {
+    if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && (window as any).__piDesignWidget && selectionMod.getSelections().length === 0 && lastSelections.length > 0 && !isProcessing) {
       e.preventDefault();
       for (const sel of lastSelections) {
         const el = findByOid(sel.dataOid);
