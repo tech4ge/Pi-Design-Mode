@@ -178,12 +178,12 @@ export default function (pi: ExtensionAPI) {
         } else if (message.instanceIndex !== undefined) {
           // Remove specific instance only
           currentSelection = currentSelection.filter(
-            (s) => s.type === "design:select" || s.dataOid !== message.dataOid || s.instanceIndex !== message.instanceIndex,
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex),
           );
         } else {
           // Remove all instances of this dataOid
           currentSelection = currentSelection.filter(
-            (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid),
           );
         }
         updateWidget(ctx);

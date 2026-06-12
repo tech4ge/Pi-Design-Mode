@@ -47334,11 +47334,11 @@ function src_default(pi) {
           currentSelection = [];
         } else if (message.instanceIndex !== void 0) {
           currentSelection = currentSelection.filter(
-            (s) => s.type === "design:select" || s.dataOid !== message.dataOid || s.instanceIndex !== message.instanceIndex
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex)
           );
         } else {
           currentSelection = currentSelection.filter(
-            (s) => s.type === "design:select" && s.dataOid !== message.dataOid
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid)
           );
         }
         updateWidget(ctx);
