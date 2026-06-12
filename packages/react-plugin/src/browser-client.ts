@@ -5,10 +5,11 @@ import { createHistory } from "./browser-client/history.js";
 import { createHoverTooltip } from "./browser-client/hover-tooltip.js";
 import { createSelectionManager } from "./browser-client/selection.js";
 import { buildSelectionData } from "./browser-client/click-handler.js";
+import { resolveElement as resolveElementImpl, type ResolvedSelection } from "./browser-client/element-resolver.js";
 import { routeServerMessage } from "./browser-client/connection.js";
 import { createWidgetState } from "./browser-client/widget.js";
 import { escapeHtml, getSelector, computeStructuralContext as computeStructuralContextImpl, getComputedStyles, getBoundingBox } from "./browser-client/utils.js";
-import { applyHighlight as applyHighlightImpl, clearHighlight as clearHighlightImpl, reapplyAllHighlights as reapplyAllHighlightsImpl } from "./browser-client/highlight.js";
+import { applyHighlight as applyHighlightImpl, clearHighlight as clearHighlightImpl, reapplyAllHighlights as reapplyAllHighlightsImpl, type ElementResolver } from "./browser-client/highlight.js";
 import { WIDGET_CSS, WIDGET_HTML } from "./browser-client/widget-template.js";
 
 // Pi Design Mode — Browser Client
@@ -28,7 +29,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   const widgetState = createWidgetState();
   let isAltDown = false;
   let lastSelections: any[] = [];
-  let submittedOids: string[] = [];
+  let submittedSelections: any[] = [];
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
   let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
   let restoreObserver: MutationObserver | null = null;
@@ -48,6 +49,17 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
            document.querySelector(`[data-source="${CSS.escape(value)}"]`);
   }
 
+  function resolveSelectionElement(sel: any): Element | null {
+    if (sel.elementRef || sel.instanceIndex !== undefined || sel.structuralSelector) {
+      return resolveElementImpl(
+        sel as ResolvedSelection,
+        (s) => Array.from(document.querySelectorAll(s)),
+        (s) => document.querySelector(s),
+      );
+    }
+    return findByOid(sel.dataOid);
+  }
+
   // parseDataOid is imported from data-oid/shared at the top of this module.
   // tsup inlines it into the IIFE — no runtime import.
 
@@ -60,7 +72,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   function persistSelections() {
     try {
-      if (selectionMod.getSelections().length > 0) sessionStorage.setItem("pi-design-selections", JSON.stringify(selectionMod.getSelections()));
+      if (selectionMod.getSelections().length > 0) {
+        // Strip non-serializable WeakRef before persisting
+        const serializable = selectionMod.getSelections().map((s: any) => {
+          const { elementRef, ...rest } = s;
+          return rest;
+        });
+        sessionStorage.setItem("pi-design-selections", JSON.stringify(serializable));
+      }
       else sessionStorage.removeItem("pi-design-selections");
     } catch {}
   }
@@ -80,11 +99,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   function applyRestoredSelections(saved: any[]) {
     let found = 0;
     for (const s of saved) {
-      if (selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
-      const el = findByOid(s.dataOid);
+      if (selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) >= 0) continue;
+      // Restore WeakRef from DOM
+      const el = resolveSelectionElement(s);
       if (!el) continue;
+      s.elementRef = new WeakRef(el);
+      if (s.colorIndex === undefined) s.colorIndex = selectionMod.getSelections().length - 1;
       selectionMod.getSelections().push(s);
-      applyHighlight(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+      applyHighlight(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
       found++;
     }
     if (found > 0) {
@@ -94,29 +116,31 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
     // Some elements not in DOM yet — watch for them via MutationObserver
     const missingOids = saved.filter(
-      (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0,
+      (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0,
     );
     if (missingOids.length === 0) return;
 
     restoreObserver = new MutationObserver(() => {
       const stillMissing = missingOids.filter(
-        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0 && !findByOid(s.dataOid),
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0 && !resolveSelectionElement(s),
       );
       if (stillMissing.length === missingOids.length) return; // no change yet
 
       // At least one element appeared — try restoring again
       const nowFound = missingOids.filter(
-        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0 && findByOid(s.dataOid) !== null,
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0 && resolveSelectionElement(s) !== null,
       );
       for (const s of nowFound) {
+        s.elementRef = new WeakRef(resolveSelectionElement(s));
+        if (s.colorIndex === undefined) s.colorIndex = selectionMod.getSelections().length - 1;
         selectionMod.getSelections().push(s);
-        applyHighlight(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+        applyHighlight(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
       }
       render();
 
       // All restored?
       const remaining = missingOids.filter(
-        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0,
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0,
       );
       if (remaining.length === 0) {
         restoreObserver?.disconnect();
@@ -191,21 +215,24 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   // --- Selection management ---
 
-  function applyHighlight(dataOid: string, color: string) {
-    applyHighlightImpl(dataOid, color, findByOid);
+  function applyHighlight(sel: any, color: string) {
+    applyHighlightImpl(sel.dataOid, color, findByOid, resolveSelectionElement, sel);
   }
 
-  function clearHighlight(dataOid: string) {
-    clearHighlightImpl(dataOid, findByOid);
+  function clearHighlight(sel: any) {
+    clearHighlightImpl(sel.dataOid, findByOid, resolveSelectionElement, sel);
   }
 
   function reapplyAllHighlights() {
-    reapplyAllHighlightsImpl(selectionMod.getSelections(), SELECTION_COLORS, findByOid, applyHighlightImpl);
+    reapplyAllHighlightsImpl(selectionMod.getSelections(), SELECTION_COLORS, findByOid, applyHighlightImpl, resolveSelectionElement);
   }
 
   // --- Selection module (instantiated after highlight functions) ---
   selectionMod = createSelectionManager({
-    applyHighlight: (dataOid: string) => applyHighlight(dataOid, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
+    applyHighlight: (sel: any) => {
+      if (sel.colorIndex === undefined) sel.colorIndex = selectionMod.getSelections().length - 1;
+      applyHighlight(sel, SELECTION_COLORS[sel.colorIndex % SELECTION_COLORS.length]);
+    },
     clearHighlight,
     reapplyAllHighlights,
     persistSelections,
@@ -216,9 +243,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     return selectionMod.addSelection(sel);
   }
 
-  function removeSelection(dataOid: string, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
+  function removeSelection(dataOid: string, instanceIndex: number | undefined, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     selectionMod.setSendMessage(sendMessage);
-    selectionMod.removeSelection(dataOid);
+    selectionMod.removeSelection(dataOid, instanceIndex);
   }
 
   function clearAllSelections(sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
@@ -226,8 +253,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     selectionMod.clearAllSelections();
   }
 
-  function flashElement(dataOid: string) {
-    const el = findByOid(dataOid);
+  function flashElement(sel: any) {
+    const el = sel ? resolveSelectionElement(sel) : (sel?.dataOid ? findByOid(sel.dataOid) : null);
     if (!el) return;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     const orig = (el as HTMLElement).style.outlineOffset;
@@ -349,10 +376,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if (!instruction) return;
   historyMod.saveHistory(instruction);
       const structuralContext = computeStructuralContext();
-      submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+      submittedSelections = selectionMod.getSelections().slice();
       sendMessage.send({
         type: "design:submit",
-        selections: selectionMod.getSelections().map((s) => s.dataOid),
+        selections: selectionMod.getSelections().map((s) => ({
+          dataOid: s.dataOid,
+          instanceIndex: s.instanceIndex,
+          structuralSelector: s.structuralSelector,
+        })),
         instruction,
         structuralContext,
       });
@@ -383,8 +414,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         cancelBtn.style.display = "none";
         if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
         if (value) {
-          submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
-          for (const sel of selectionMod.getSelections()) clearHighlight(sel.dataOid);
+          submittedSelections = selectionMod.getSelections().slice();
+          for (const sel of selectionMod.getSelections()) clearHighlight(sel);
           processingTimer = setTimeout(() => {
             if (widgetState.isProcessing()) cancelBtn.style.display = "inline";
           }, 60000);
@@ -426,14 +457,15 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     selectionsContainer.innerHTML = "";
     for (let i = 0; i < selectionMod.getSelections().length; i++) {
       const sel = selectionMod.getSelections()[i];
-      const color = SELECTION_COLORS[i % SELECTION_COLORS.length];
+      const color = SELECTION_COLORS[(sel.colorIndex ?? i) % SELECTION_COLORS.length];
       const parsed = parseDataOid(sel.dataOid);
       const location = parsed ? `${parsed.filePath}:${parsed.line}` : sel.dataOid;
+      const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
       const item = document.createElement("div");
       item.className = "selection-item";
-      item.innerHTML = `<span class="color-dot" style="background:${color}"></span><span class="tag">&lt;${escapeHtml(sel.tagName)}&gt;</span><span class="file">${escapeHtml(location)}</span><button class="remove" data-oid="${escapeHtml(sel.dataOid)}">×</button>`;
-      item.querySelector(".remove")!.addEventListener("click", (e) => { e.stopPropagation(); removeSelection(sel.dataOid, { send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); }, isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; } }); });
-      item.addEventListener("click", () => flashElement(sel.dataOid));
+      item.innerHTML = `<span class="color-dot" style="background:${color}"></span><span class="tag">&lt;${escapeHtml(sel.tagName)}&gt;${instanceLabel}</span><span class="file">${escapeHtml(location)}</span><button class="remove" data-oid="${escapeHtml(sel.dataOid)}" data-instance="${sel.instanceIndex ?? 0}">×</button>`;
+      item.querySelector(".remove")!.addEventListener("click", (e) => { e.stopPropagation(); removeSelection(sel.dataOid, sel.instanceIndex, { send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); }, isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; } }); });
+      item.addEventListener("click", () => flashElement(sel));
       selectionsContainer.appendChild(item);
     }
     if (selectionMod.getSelections().length === 0) {
@@ -444,29 +476,29 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   selectionMod.setRender(render);
 
   function flashEditedElements() {
-    if (submittedOids.length === 0) return;
+    if (submittedSelections.length === 0) return;
     let flashed = 0;
-    for (const oid of submittedOids) {
-      const el = findByOid(oid);
+    for (const sel of submittedSelections) {
+      const el = resolveSelectionElement(sel);
       if (el) {
         flashed++;
         (el as HTMLElement).style.outline = "2px solid #a6e3a1";
         (el as HTMLElement).style.outlineOffset = "2px";
-        ((element: Element, dataOid: string) => {
+        ((element: Element, selRef: any) => {
           setTimeout(() => {
-            const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === dataOid);
+            const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === selRef.dataOid && s.instanceIndex === selRef.instanceIndex);
             if (selIdx >= 0) {
-              applyHighlight(dataOid, SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
+              applyHighlight(selectionMod.getSelections()[selIdx], SELECTION_COLORS[(selectionMod.getSelections()[selIdx].colorIndex ?? selIdx) % SELECTION_COLORS.length]);
             } else {
               (element as HTMLElement).style.outline = "";
               (element as HTMLElement).style.outlineOffset = "";
             }
           }, 2000);
-        })(el, oid);
+        })(el, sel);
       }
     }
-    console.log(`[pi-design] Flashed ${flashed}/${submittedOids.length} elements`);
-    submittedOids = [];
+    console.log(`[pi-design] Flashed ${flashed}/${submittedSelections.length} elements`);
+    submittedSelections = [];
   }
 
   function showSuccess() {
@@ -541,12 +573,17 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       getSelector,
       getComputedStyles,
       getBoundingBox,
+      querySelectorAll: (s: string) => Array.from(document.querySelectorAll(s)),
+      cssEscape: CSS.escape,
+      bodyElement: document.body,
     });
     const wasAdded = addSelection(selectionData, sendMessage);
     if (wasAdded && ws && widgetState.isConnected()) {
       sendMessage.send({
         type: "design:select",
         dataOid: selectionData.dataOid,
+        instanceIndex: selectionData.instanceIndex,
+        structuralSelector: selectionData.structuralSelector,
         selector: selectionData.selector,
         computedStyles: selectionData.computedStyles,
         boundingBox: selectionData.boundingBox,
@@ -592,7 +629,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && (window as any).__piDesignWidget && selectionMod.getSelections().length === 0 && lastSelections.length > 0 && !widgetState.isProcessing()) {
       e.preventDefault();
       for (const sel of lastSelections) {
-        const el = findByOid(sel.dataOid);
+        const el = resolveSelectionElement(sel);
         if (!el) continue;
         addSelection(sel, sendMessage);
         el.scrollIntoView({ behavior: "smooth", block: "center" });

@@ -165,7 +165,7 @@ export default function (pi: ExtensionAPI) {
 
       case "design:select": {
         currentSelection = currentSelection.filter(
-          (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
+          (s) => s.type === "design:select" && !(s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex),
         );
         currentSelection.push(message);
         updateWidget(ctx);
@@ -175,9 +175,15 @@ export default function (pi: ExtensionAPI) {
       case "design:deselect": {
         if (message.dataOid === "__all__") {
           currentSelection = [];
-        } else {
+        } else if (message.instanceIndex !== undefined) {
+          // Remove specific instance only
           currentSelection = currentSelection.filter(
-            (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex),
+          );
+        } else {
+          // Remove all instances of this dataOid
+          currentSelection = currentSelection.filter(
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid),
           );
         }
         updateWidget(ctx);
@@ -192,27 +198,13 @@ export default function (pi: ExtensionAPI) {
           const parsed = parseDataOid(sel.dataOid);
           const filePath = parsed ? resolve(cwd, parsed.filePath) : undefined;
           const location = filePath ? `${filePath}:${parsed.line}` : sel.dataOid;
-          content += `Selected: <${sel.tagName}> at ${location}\n`;
+          const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
+          content += `Selected: <${sel.tagName}${instanceLabel}> at ${location}\n`;
+          if (sel.structuralSelector) {
+            content += `CSS Path: ${sel.structuralSelector}\n`;
+          }
           content += `Styles: ${Object.entries(sel.computedStyles).map(([k, v]) => `${k}: ${v}`).join(", ")}\n`;
           content += `Position: ${sel.boundingBox.x},${sel.boundingBox.y} (${sel.boundingBox.width}×${sel.boundingBox.height})\n\n`;
-        }
-        // Add structural context if available (multi-select only)
-        if (message.structuralContext && (message.structuralContext.siblings.length > 0 || message.structuralContext.sameComponent.length > 0)) {
-          if (message.structuralContext.siblings.length > 0) {
-            content += `Sibling groups (elements sharing the same parent):\n`;
-            for (const group of message.structuralContext.siblings) {
-              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid; });
-              content += `  - ${locs.join(", ")}\n`;
-            }
-          }
-          if (message.structuralContext.sameComponent.length > 0) {
-            content += `Same component groups (elements from the same file):\n`;
-            for (const group of message.structuralContext.sameComponent) {
-              const locs = group.map((oid) => { const p = parseDataOid(oid); return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid; });
-              content += `  - ${locs.join(", ")}\n`;
-            }
-          }
-          content += `\n`;
         }
         content += `Instruction: ${message.instruction}`;
 
@@ -224,6 +216,8 @@ export default function (pi: ExtensionAPI) {
           details: {
             selections: selections.map((s) => ({
               dataOid: s.dataOid,
+              instanceIndex: s.instanceIndex,
+              structuralSelector: s.structuralSelector,
               tagName: s.tagName,
               computedStyles: s.computedStyles,
               boundingBox: s.boundingBox,

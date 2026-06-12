@@ -47323,7 +47323,7 @@ function src_default(pi) {
       }
       case "design:select": {
         currentSelection = currentSelection.filter(
-          (s) => s.type === "design:select" && s.dataOid !== message.dataOid
+          (s) => s.type === "design:select" && !(s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex)
         );
         currentSelection.push(message);
         updateWidget(ctx);
@@ -47332,9 +47332,13 @@ function src_default(pi) {
       case "design:deselect": {
         if (message.dataOid === "__all__") {
           currentSelection = [];
+        } else if (message.instanceIndex !== void 0) {
+          currentSelection = currentSelection.filter(
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex)
+          );
         } else {
           currentSelection = currentSelection.filter(
-            (s) => s.type === "design:select" && s.dataOid !== message.dataOid
+            (s) => !(s.type === "design:select" && s.dataOid === message.dataOid)
           );
         }
         updateWidget(ctx);
@@ -47350,40 +47354,17 @@ function src_default(pi) {
           const parsed = parseDataOid(sel.dataOid);
           const filePath = parsed ? resolve(cwd, parsed.filePath) : void 0;
           const location = filePath ? `${filePath}:${parsed.line}` : sel.dataOid;
-          content += `Selected: <${sel.tagName}> at ${location}
+          const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
+          content += `Selected: <${sel.tagName}${instanceLabel}> at ${location}
 `;
+          if (sel.structuralSelector) {
+            content += `CSS Path: ${sel.structuralSelector}
+`;
+          }
           content += `Styles: ${Object.entries(sel.computedStyles).map(([k, v]) => `${k}: ${v}`).join(", ")}
 `;
           content += `Position: ${sel.boundingBox.x},${sel.boundingBox.y} (${sel.boundingBox.width}\xD7${sel.boundingBox.height})
 
-`;
-        }
-        if (message.structuralContext && (message.structuralContext.siblings.length > 0 || message.structuralContext.sameComponent.length > 0)) {
-          if (message.structuralContext.siblings.length > 0) {
-            content += `Sibling groups (elements sharing the same parent):
-`;
-            for (const group of message.structuralContext.siblings) {
-              const locs = group.map((oid) => {
-                const p = parseDataOid(oid);
-                return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid;
-              });
-              content += `  - ${locs.join(", ")}
-`;
-            }
-          }
-          if (message.structuralContext.sameComponent.length > 0) {
-            content += `Same component groups (elements from the same file):
-`;
-            for (const group of message.structuralContext.sameComponent) {
-              const locs = group.map((oid) => {
-                const p = parseDataOid(oid);
-                return p ? `${resolve(cwd, p.filePath)}:${p.line}` : oid;
-              });
-              content += `  - ${locs.join(", ")}
-`;
-            }
-          }
-          content += `
 `;
         }
         content += `Instruction: ${message.instruction}`;
@@ -47395,6 +47376,8 @@ function src_default(pi) {
           details: {
             selections: selections.map((s) => ({
               dataOid: s.dataOid,
+              instanceIndex: s.instanceIndex,
+              structuralSelector: s.structuralSelector,
               tagName: s.tagName,
               computedStyles: s.computedStyles,
               boundingBox: s.boundingBox

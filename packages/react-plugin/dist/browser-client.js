@@ -149,27 +149,38 @@
       _render = r;
     }
     function addSelection(sel) {
-      const existing = selections.findIndex((s) => s.dataOid === sel.dataOid);
+      const existing = selections.findIndex((s) => s.dataOid === sel.dataOid && s.instanceIndex === sel.instanceIndex);
       if (existing !== -1) {
-        removeSelection(sel.dataOid);
+        removeSelection(sel.dataOid, sel.instanceIndex);
         return false;
       }
       selections.push(sel);
-      applyHighlight2(sel.dataOid);
+      applyHighlight2(sel);
       persistSelections();
       _render == null ? void 0 : _render();
       return true;
     }
-    function removeSelection(dataOid) {
-      selections = selections.filter((s) => s.dataOid !== dataOid);
-      clearHighlight2(dataOid);
-      sendMessage == null ? void 0 : sendMessage.send({ type: "design:deselect", dataOid });
+    function removeSelection(dataOid, instanceIndex) {
+      const removed = selections.filter((s) => {
+        if (instanceIndex !== void 0) {
+          return s.dataOid === dataOid && s.instanceIndex === instanceIndex;
+        }
+        return s.dataOid === dataOid;
+      });
+      selections = selections.filter((s) => {
+        if (instanceIndex !== void 0) {
+          return !(s.dataOid === dataOid && s.instanceIndex === instanceIndex);
+        }
+        return s.dataOid !== dataOid;
+      });
+      for (const sel of removed) clearHighlight2(sel);
+      sendMessage == null ? void 0 : sendMessage.send({ type: "design:deselect", dataOid, instanceIndex });
       persistSelections();
       reapplyAllHighlights2();
       _render == null ? void 0 : _render();
     }
     function clearAllSelections() {
-      for (const sel of selections) clearHighlight2(sel.dataOid);
+      for (const sel of selections) clearHighlight2(sel);
       selections = [];
       sendMessage == null ? void 0 : sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
       persistSelections();
@@ -178,11 +189,70 @@
     return { getSelections, setSelections, addSelection, removeSelection, clearAllSelections, setSendMessage, setRender };
   }
 
+  // src/browser-client/element-resolver.ts
+  function defaultCssEscape(value) {
+    if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(value);
+    return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+  function getInstanceIndex(element, dataOid, querySelectorAll, cssEscape = defaultCssEscape) {
+    const escaped = cssEscape(dataOid);
+    const all = querySelectorAll(`[data-oid="${escaped}"],[data-source="${escaped}"]`);
+    for (let i = 0; i < all.length; i++) {
+      if (all[i] === element) return i;
+    }
+    return -1;
+  }
+  function resolveElement(selection, querySelectorAll, querySelector, cssEscape = defaultCssEscape) {
+    const el = selection.elementRef.deref();
+    if ((el == null ? void 0 : el.isConnected) === true) {
+      return el;
+    }
+    if (selection.instanceIndex >= 0) {
+      const escaped = cssEscape(selection.dataOid);
+      const all = querySelectorAll(`[data-oid="${escaped}"],[data-source="${escaped}"]`);
+      if (selection.instanceIndex < all.length) {
+        return all[selection.instanceIndex];
+      }
+    }
+    if (selection.structuralSelector) {
+      const found = querySelector(selection.structuralSelector);
+      if (found) return found;
+    }
+    return null;
+  }
+  function computeStructuralSelector(element, parentLimit) {
+    const parts = [];
+    let current = element;
+    while (current && current !== parentLimit) {
+      const parent = current.parentElement;
+      if (!parent) break;
+      const tag = current.tagName.toLowerCase();
+      const siblings = Array.from(parent.children);
+      const sameTagSiblings = siblings.filter(
+        (s) => s.tagName === current.tagName
+      );
+      if (sameTagSiblings.length === 1) {
+        parts.unshift(tag);
+      } else {
+        const index = siblings.indexOf(current) + 1;
+        parts.unshift(`${tag}:nth-child(${index})`);
+      }
+      current = parent;
+      if (current === parentLimit) break;
+    }
+    return parts.join(" > ");
+  }
+
   // src/browser-client/click-handler.ts
   function buildSelectionData(target, deps) {
     const dataOid = target.getAttribute("data-oid") || target.getAttribute("data-source") || "";
+    const instanceIndex = getInstanceIndex(target, dataOid, deps.querySelectorAll, deps.cssEscape);
+    const structuralSelector = deps.bodyElement ? computeStructuralSelector(target, deps.bodyElement) : "";
     return {
       dataOid,
+      instanceIndex,
+      elementRef: new WeakRef(target),
+      structuralSelector,
       selector: deps.getSelector(target),
       computedStyles: deps.getComputedStyles(target),
       boundingBox: deps.getBoundingBox(target),
@@ -307,23 +377,23 @@
   }
 
   // src/browser-client/highlight.ts
-  function applyHighlight(dataOid, color, findByOid) {
-    const el = findByOid(dataOid);
+  function applyHighlight(dataOid, color, findByOid, resolveSelection, selection) {
+    const el = resolveEl(dataOid, findByOid, resolveSelection, selection);
     if (el) {
       el.style.outline = `2px solid ${color}`;
       el.style.outlineOffset = "2px";
       el.setAttribute("data-pi-highlighted", "true");
     }
   }
-  function clearHighlight(dataOid, findByOid) {
-    const el = findByOid(dataOid);
+  function clearHighlight(dataOid, findByOid, resolveSelection, selection) {
+    const el = resolveEl(dataOid, findByOid, resolveSelection, selection);
     if (el) {
       el.style.outline = "";
       el.style.outlineOffset = "";
       el.removeAttribute("data-pi-highlighted");
     }
   }
-  function reapplyAllHighlights(selections, colors, findByOid, applyHighlight2) {
+  function reapplyAllHighlights(selections, colors, findByOid, applyHighlightFn, resolveSelection) {
     const highlighted = document.querySelectorAll("[data-pi-highlighted]");
     for (const el of highlighted) {
       el.style.outline = "";
@@ -331,8 +401,15 @@
       el.removeAttribute("data-pi-highlighted");
     }
     for (let i = 0; i < selections.length; i++) {
-      applyHighlight2(selections[i].dataOid, colors[i % colors.length], findByOid);
+      const colorIdx = selections[i].colorIndex ?? i;
+      applyHighlightFn(selections[i].dataOid, colors[colorIdx % colors.length], findByOid, resolveSelection, selections[i]);
     }
+  }
+  function resolveEl(dataOid, findByOid, resolveSelection, selection) {
+    if (resolveSelection && selection) {
+      return resolveSelection(selection);
+    }
+    return findByOid(dataOid);
   }
 
   // src/browser-client/widget-template.ts
@@ -399,6 +476,15 @@
   if (typeof window !== "undefined" && !window.__piDesignInit) {
     let findByOid = function(value) {
       return document.querySelector(`[data-oid="${CSS.escape(value)}"]`) || document.querySelector(`[data-source="${CSS.escape(value)}"]`);
+    }, resolveSelectionElement = function(sel) {
+      if (sel.elementRef || sel.instanceIndex !== void 0 || sel.structuralSelector) {
+        return resolveElement(
+          sel,
+          (s) => Array.from(document.querySelectorAll(s)),
+          (s) => document.querySelector(s)
+        );
+      }
+      return findByOid(sel.dataOid);
     }, computeStructuralContext2 = function() {
       return computeStructuralContext(
         selectionMod.getSelections().map((s) => s.dataOid),
@@ -406,8 +492,13 @@
       );
     }, persistSelections = function() {
       try {
-        if (selectionMod.getSelections().length > 0) sessionStorage.setItem("pi-design-selections", JSON.stringify(selectionMod.getSelections()));
-        else sessionStorage.removeItem("pi-design-selections");
+        if (selectionMod.getSelections().length > 0) {
+          const serializable = selectionMod.getSelections().map((s) => {
+            const { elementRef, ...rest } = s;
+            return rest;
+          });
+          sessionStorage.setItem("pi-design-selections", JSON.stringify(serializable));
+        } else sessionStorage.removeItem("pi-design-selections");
       } catch {
       }
     }, restoreSelections = function() {
@@ -422,11 +513,13 @@
     }, applyRestoredSelections = function(saved) {
       let found = 0;
       for (const s of saved) {
-        if (selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
-        const el = findByOid(s.dataOid);
+        if (selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) >= 0) continue;
+        const el = resolveSelectionElement(s);
         if (!el) continue;
+        s.elementRef = new WeakRef(el);
+        if (s.colorIndex === void 0) s.colorIndex = selectionMod.getSelections().length - 1;
         selectionMod.getSelections().push(s);
-        applyHighlight2(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+        applyHighlight2(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
         found++;
       }
       if (found > 0) {
@@ -434,24 +527,26 @@
         if (found >= saved.length) return;
       }
       const missingOids = saved.filter(
-        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0
+        (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0
       );
       if (missingOids.length === 0) return;
       restoreObserver = new MutationObserver(() => {
         const stillMissing = missingOids.filter(
-          (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0 && !findByOid(s.dataOid)
+          (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0 && !resolveSelectionElement(s)
         );
         if (stillMissing.length === missingOids.length) return;
         const nowFound = missingOids.filter(
-          (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0 && findByOid(s.dataOid) !== null
+          (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0 && resolveSelectionElement(s) !== null
         );
         for (const s of nowFound) {
+          s.elementRef = new WeakRef(resolveSelectionElement(s));
+          if (s.colorIndex === void 0) s.colorIndex = selectionMod.getSelections().length - 1;
           selectionMod.getSelections().push(s);
-          applyHighlight2(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+          applyHighlight2(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
         }
         render();
         const remaining = missingOids.filter(
-          (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid) < 0
+          (s) => selectionMod.getSelections().findIndex((x) => x.dataOid === s.dataOid && x.instanceIndex === s.instanceIndex) < 0
         );
         if (remaining.length === 0) {
           restoreObserver == null ? void 0 : restoreObserver.disconnect();
@@ -520,23 +615,23 @@
           if (window.__piDesignWidget) window.__piDesignWidget.showError(msg);
         }
       });
-    }, applyHighlight2 = function(dataOid, color) {
-      applyHighlight(dataOid, color, findByOid);
-    }, clearHighlight2 = function(dataOid) {
-      clearHighlight(dataOid, findByOid);
+    }, applyHighlight2 = function(sel, color) {
+      applyHighlight(sel.dataOid, color, findByOid, resolveSelectionElement, sel);
+    }, clearHighlight2 = function(sel) {
+      clearHighlight(sel.dataOid, findByOid, resolveSelectionElement, sel);
     }, reapplyAllHighlights2 = function() {
-      reapplyAllHighlights(selectionMod.getSelections(), SELECTION_COLORS, findByOid, applyHighlight);
+      reapplyAllHighlights(selectionMod.getSelections(), SELECTION_COLORS, findByOid, applyHighlight, resolveSelectionElement);
     }, addSelection = function(sel, sendMessage2) {
       selectionMod.setSendMessage(sendMessage2);
       return selectionMod.addSelection(sel);
-    }, removeSelection = function(dataOid, sendMessage2) {
+    }, removeSelection = function(dataOid, instanceIndex, sendMessage2) {
       selectionMod.setSendMessage(sendMessage2);
-      selectionMod.removeSelection(dataOid);
+      selectionMod.removeSelection(dataOid, instanceIndex);
     }, clearAllSelections = function(sendMessage2) {
       selectionMod.setSendMessage(sendMessage2);
       selectionMod.clearAllSelections();
-    }, flashElement = function(dataOid) {
-      const el = findByOid(dataOid);
+    }, flashElement = function(sel) {
+      const el = sel ? resolveSelectionElement(sel) : (sel == null ? void 0 : sel.dataOid) ? findByOid(sel.dataOid) : null;
       if (!el) return;
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       const orig = el.style.outlineOffset;
@@ -648,10 +743,14 @@
         if (!instruction) return;
         historyMod.saveHistory(instruction);
         const structuralContext = computeStructuralContext2();
-        submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+        submittedSelections = selectionMod.getSelections().slice();
         sendMessage2.send({
           type: "design:submit",
-          selections: selectionMod.getSelections().map((s) => s.dataOid),
+          selections: selectionMod.getSelections().map((s) => ({
+            dataOid: s.dataOid,
+            instanceIndex: s.instanceIndex,
+            structuralSelector: s.structuralSelector
+          })),
           instruction,
           structuralContext
         });
@@ -682,8 +781,8 @@
             processingTimer = null;
           }
           if (value) {
-            submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
-            for (const sel of selectionMod.getSelections()) clearHighlight2(sel.dataOid);
+            submittedSelections = selectionMod.getSelections().slice();
+            for (const sel of selectionMod.getSelections()) clearHighlight2(sel);
             processingTimer = setTimeout(() => {
               if (widgetState.isProcessing()) cancelBtn.style.display = "inline";
             }, 6e4);
@@ -725,50 +824,51 @@
       selectionsContainer.innerHTML = "";
       for (let i = 0; i < selectionMod.getSelections().length; i++) {
         const sel = selectionMod.getSelections()[i];
-        const color = SELECTION_COLORS[i % SELECTION_COLORS.length];
+        const color = SELECTION_COLORS[(sel.colorIndex ?? i) % SELECTION_COLORS.length];
         const parsed = parseDataOid(sel.dataOid);
         const location = parsed ? `${parsed.filePath}:${parsed.line}` : sel.dataOid;
+        const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
         const item = document.createElement("div");
         item.className = "selection-item";
-        item.innerHTML = `<span class="color-dot" style="background:${color}"></span><span class="tag">&lt;${escapeHtml(sel.tagName)}&gt;</span><span class="file">${escapeHtml(location)}</span><button class="remove" data-oid="${escapeHtml(sel.dataOid)}">\xD7</button>`;
+        item.innerHTML = `<span class="color-dot" style="background:${color}"></span><span class="tag">&lt;${escapeHtml(sel.tagName)}&gt;${instanceLabel}</span><span class="file">${escapeHtml(location)}</span><button class="remove" data-oid="${escapeHtml(sel.dataOid)}" data-instance="${sel.instanceIndex ?? 0}">\xD7</button>`;
         item.querySelector(".remove").addEventListener("click", (e) => {
           e.stopPropagation();
-          removeSelection(sel.dataOid, { send(msg) {
+          removeSelection(sel.dataOid, sel.instanceIndex, { send(msg) {
             if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
           }, isConnected() {
             return ws !== null && ws.readyState === WebSocket.OPEN;
           } });
         });
-        item.addEventListener("click", () => flashElement(sel.dataOid));
+        item.addEventListener("click", () => flashElement(sel));
         selectionsContainer.appendChild(item);
       }
       if (selectionMod.getSelections().length === 0) {
         selectionsContainer.innerHTML = '<div style="color:#6c7086;font-size:12px;padding:4px 0;">No element selected</div>';
       }
     }, flashEditedElements = function() {
-      if (submittedOids.length === 0) return;
+      if (submittedSelections.length === 0) return;
       let flashed = 0;
-      for (const oid of submittedOids) {
-        const el = findByOid(oid);
+      for (const sel of submittedSelections) {
+        const el = resolveSelectionElement(sel);
         if (el) {
           flashed++;
           el.style.outline = "2px solid #a6e3a1";
           el.style.outlineOffset = "2px";
-          ((element, dataOid) => {
+          ((element, selRef) => {
             setTimeout(() => {
-              const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === dataOid);
+              const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === selRef.dataOid && s.instanceIndex === selRef.instanceIndex);
               if (selIdx >= 0) {
-                applyHighlight2(dataOid, SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
+                applyHighlight2(selectionMod.getSelections()[selIdx], SELECTION_COLORS[(selectionMod.getSelections()[selIdx].colorIndex ?? selIdx) % SELECTION_COLORS.length]);
               } else {
                 element.style.outline = "";
                 element.style.outlineOffset = "";
               }
             }, 2e3);
-          })(el, oid);
+          })(el, sel);
         }
       }
-      console.log(`[pi-design] Flashed ${flashed}/${submittedOids.length} elements`);
-      submittedOids = [];
+      console.log(`[pi-design] Flashed ${flashed}/${submittedSelections.length} elements`);
+      submittedSelections = [];
     }, showSuccess = function() {
       if (hint) {
         hint.textContent = "\u2713 Changes applied";
@@ -840,13 +940,18 @@
       const selectionData = buildSelectionData(target, {
         getSelector,
         getComputedStyles,
-        getBoundingBox
+        getBoundingBox,
+        querySelectorAll: (s) => Array.from(document.querySelectorAll(s)),
+        cssEscape: CSS.escape,
+        bodyElement: document.body
       });
       const wasAdded = addSelection(selectionData, sendMessage2);
       if (wasAdded && ws && widgetState.isConnected()) {
         sendMessage2.send({
           type: "design:select",
           dataOid: selectionData.dataOid,
+          instanceIndex: selectionData.instanceIndex,
+          structuralSelector: selectionData.structuralSelector,
           selector: selectionData.selector,
           computedStyles: selectionData.computedStyles,
           boundingBox: selectionData.boundingBox,
@@ -873,7 +978,7 @@
     const widgetState = createWidgetState();
     let isAltDown = false;
     let lastSelections = [];
-    let submittedOids = [];
+    let submittedSelections = [];
     let processingTimer = null;
     let errorBannerTimer = null;
     let restoreObserver = null;
@@ -895,7 +1000,10 @@
     let historyMod = createHistory({ localStorage, input: null, historyDropdown: null });
     let ws = null;
     selectionMod = createSelectionManager({
-      applyHighlight: (dataOid) => applyHighlight2(dataOid, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
+      applyHighlight: (sel) => {
+        if (sel.colorIndex === void 0) sel.colorIndex = selectionMod.getSelections().length - 1;
+        applyHighlight2(sel, SELECTION_COLORS[sel.colorIndex % SELECTION_COLORS.length]);
+      },
       clearHighlight: clearHighlight2,
       reapplyAllHighlights: reapplyAllHighlights2,
       persistSelections
@@ -958,7 +1066,7 @@
       if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && window.__piDesignWidget && selectionMod.getSelections().length === 0 && lastSelections.length > 0 && !widgetState.isProcessing()) {
         e.preventDefault();
         for (const sel of lastSelections) {
-          const el = findByOid(sel.dataOid);
+          const el = resolveSelectionElement(sel);
           if (!el) continue;
           addSelection(sel, sendMessage2);
           el.scrollIntoView({ behavior: "smooth", block: "center" });

@@ -6,8 +6,8 @@
  */
 
 interface SelectionDeps {
-  applyHighlight: (dataOid: string) => void;
-  clearHighlight: (dataOid: string) => void;
+  applyHighlight: (sel: any) => void;
+  clearHighlight: (sel: any) => void;
   reapplyAllHighlights: () => void;
   persistSelections: () => void;
 }
@@ -34,29 +34,40 @@ export function createSelectionManager(deps: SelectionDeps) {
   function setRender(r: () => void) { _render = r; }
 
   function addSelection(sel: any): boolean {
-    const existing = selections.findIndex((s) => s.dataOid === sel.dataOid);
+    const existing = selections.findIndex((s) => s.dataOid === sel.dataOid && s.instanceIndex === sel.instanceIndex);
     if (existing !== -1) {
-      removeSelection(sel.dataOid);
+      removeSelection(sel.dataOid, sel.instanceIndex);
       return false;
     }
     selections.push(sel);
-    applyHighlight(sel.dataOid);
+    applyHighlight(sel);
     persistSelections();
     _render?.();
     return true;
   }
 
-  function removeSelection(dataOid: string) {
-    selections = selections.filter((s) => s.dataOid !== dataOid);
-    clearHighlight(dataOid);
-    sendMessage?.send({ type: "design:deselect", dataOid });
+  function removeSelection(dataOid: string, instanceIndex?: number) {
+    const removed = selections.filter((s) => {
+      if (instanceIndex !== undefined) {
+        return s.dataOid === dataOid && s.instanceIndex === instanceIndex;
+      }
+      return s.dataOid === dataOid;
+    });
+    selections = selections.filter((s) => {
+      if (instanceIndex !== undefined) {
+        return !(s.dataOid === dataOid && s.instanceIndex === instanceIndex);
+      }
+      return s.dataOid !== dataOid;
+    });
+    for (const sel of removed) clearHighlight(sel);
+    sendMessage?.send({ type: "design:deselect", dataOid, instanceIndex });
     persistSelections();
     reapplyAllHighlights();
     _render?.();
   }
 
   function clearAllSelections() {
-    for (const sel of selections) clearHighlight(sel.dataOid);
+    for (const sel of selections) clearHighlight(sel);
     selections = [];
     sendMessage?.send({ type: "design:deselect", dataOid: "__all__" });
     persistSelections();
