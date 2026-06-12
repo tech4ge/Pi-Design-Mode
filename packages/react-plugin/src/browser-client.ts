@@ -6,6 +6,7 @@ import { createHoverTooltip } from "./browser-client/hover-tooltip.js";
 import { createSelectionManager } from "./browser-client/selection.js";
 import { buildSelectionData } from "./browser-client/click-handler.js";
 import { routeServerMessage } from "./browser-client/connection.js";
+import { createWidgetState } from "./browser-client/widget.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -21,9 +22,8 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   const WS_PORT = (window as any).__PI_DESIGN_PORT || 9481;
   const SELECTION_COLORS = ["#f38ba8", "#a6e3a1", "#89b4fa", "#f9e2af", "#cba6f7", "#94e2d5", "#fab387", "#74c7ec"];
 
+  const widgetState = createWidgetState();
   let isAltDown = false;
-  let isConnected = false;
-  let isProcessing = false;
   let lastSelections: any[] = [];
   let submittedOids: string[] = [];
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -179,7 +179,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   function connectWS(sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     ws = new WebSocket(`ws://localhost:${WS_PORT}`);
     ws.onopen = () => {
-      isConnected = true;
+      widgetState.updateConnection(true);
       reconnectAttempt = 0; // Reset on successful connection
       sendMessage.send({ type: "design:connect", url: window.location.href, title: document.title });
       if ((window as any).__piDesignWidget) {
@@ -189,7 +189,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       }
     };
     ws.onclose = () => {
-      isConnected = false;
+      widgetState.updateConnection(false);
       const policy = reconnectPolicy(reconnectAttempt);
       if ("giveUp" in policy) {
         if ((window as any).__piDesignWidget) {
@@ -434,7 +434,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
     cancelBtn.addEventListener("click", () => {
       sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
-      isProcessing = false;
+      widgetState.setProcessing(false);
       processingEl.style.display = "none";
       cancelBtn.style.display = "none";
       if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
@@ -451,13 +451,13 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     };
     quickActions.addEventListener("click", (e) => {
       const btn = (e.target as Element).closest(".qa-btn");
-      if (!btn || isProcessing) return;
+      if (!btn || widgetState.isProcessing()) return;
       const action = btn.getAttribute("data-action");
       if (action && qaInstructions[action]) { input.value = qaInstructions[action]; submitBtn.click(); }
     });
 
     submitBtn.addEventListener("click", () => {
-      if (selectionMod.getSelections().length === 0 || isProcessing) return;
+      if (selectionMod.getSelections().length === 0 || widgetState.isProcessing()) return;
       const instruction = input.value.trim();
       if (!instruction) return;
   historyMod.saveHistory(instruction);
@@ -471,7 +471,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       });
       input.value = "";
       input.style.height = "auto";
-      isProcessing = true;
+      widgetState.setProcessing(true);
       lastSelections = selectionMod.getSelections().slice();
       processingEl.style.display = "block";
       render();
@@ -491,7 +491,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         clearAllSelections(sendMessage);
       },
       setProcessing(value: boolean) {
-        isProcessing = value;
+        widgetState.setProcessing(value);
         processingEl.style.display = value ? "block" : "none";
         cancelBtn.style.display = "none";
         if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
@@ -499,7 +499,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
           submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
           for (const sel of selectionMod.getSelections()) clearHighlight(sel.dataOid);
           processingTimer = setTimeout(() => {
-            if (isProcessing) cancelBtn.style.display = "inline";
+            if (widgetState.isProcessing()) cancelBtn.style.display = "inline";
           }, 60000);
         }
         if (!value) reapplyAllHighlights();
@@ -510,13 +510,13 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       showSuccess,
       showError,
       updateConnection(connected: boolean) {
-        isConnected = connected;
+        widgetState.updateConnection(connected);
         if (dot) {
           dot.className = "dot" + (connected ? " connected" : "");
           dot.title = connected ? "Connected to Pi" : "Disconnected — changes won't be sent";
         }
-        if (submitBtn) submitBtn.disabled = !connected || selectionMod.getSelections().length === 0 || isProcessing;
-        if (input) input.disabled = !connected || isProcessing;
+        if (submitBtn) submitBtn.disabled = !connected || selectionMod.getSelections().length === 0 || widgetState.isProcessing();
+        if (input) input.disabled = !connected || widgetState.isProcessing();
         if (connected && errorBanner) errorBanner.style.display = "none";
         render();
       },
@@ -528,13 +528,13 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   function render() {
     if (!shadow) return;
-    dot.className = "dot" + (isConnected ? " connected" : "");
-    dot.title = isConnected ? "Connected to Pi" : "Disconnected — changes won't be sent";
-    submitBtn.disabled = selectionMod.getSelections().length === 0 || isProcessing;
-    input.disabled = isProcessing;
-    quickActions.style.display = selectionMod.getSelections().length > 0 && !isProcessing ? "flex" : "none";
+    dot.className = "dot" + (widgetState.isConnected() ? " connected" : "");
+    dot.title = widgetState.isConnected() ? "Connected to Pi" : "Disconnected — changes won't be sent";
+    submitBtn.disabled = selectionMod.getSelections().length === 0 || widgetState.isProcessing();
+    input.disabled = widgetState.isProcessing();
+    quickActions.style.display = selectionMod.getSelections().length > 0 && !widgetState.isProcessing() ? "flex" : "none";
     qaMultiBtns.forEach((btn) => { (btn as HTMLElement).style.display = selectionMod.getSelections().length >= 2 ? "" : "none"; });
-    processingEl.style.display = isProcessing ? "block" : "none";
+    processingEl.style.display = widgetState.isProcessing() ? "block" : "none";
 
     selectionsContainer.innerHTML = "";
     for (let i = 0; i < selectionMod.getSelections().length; i++) {
@@ -656,7 +656,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       getBoundingBox,
     });
     const wasAdded = addSelection(selectionData, sendMessage);
-    if (wasAdded && ws && isConnected) {
+    if (wasAdded && ws && widgetState.isConnected()) {
       sendMessage.send({
         type: "design:select",
         dataOid: selectionData.dataOid,
@@ -702,7 +702,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (e.key === "Escape" && !e.altKey && document.activeElement !== input) {
       clearAllSelections(sendMessage);
     }
-    if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && (window as any).__piDesignWidget && selectionMod.getSelections().length === 0 && lastSelections.length > 0 && !isProcessing) {
+    if (e.key === "r" && e.altKey && !e.ctrlKey && !e.metaKey && (window as any).__piDesignWidget && selectionMod.getSelections().length === 0 && lastSelections.length > 0 && !widgetState.isProcessing()) {
       e.preventDefault();
       for (const sel of lastSelections) {
         const el = findByOid(sel.dataOid);
@@ -722,7 +722,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       sendMessage.send({ type: "design:disconnect" });
     }
-    if (ws) { ws.onclose = null; ws.close(); ws = null; isConnected = false; }
+    if (ws) { ws.onclose = null; ws.close(); ws = null; widgetState.updateConnection(false); }
     sessionStorage.removeItem("pi-design-selections");
     destroyWidget();
   }
@@ -734,9 +734,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   };
 
   window.addEventListener("beforeunload", () => {
-    if (ws && isConnected) sendMessage.send({ type: "design:disconnect" });
+    if (ws && widgetState.isConnected()) sendMessage.send({ type: "design:disconnect" });
     // Don't call disconnect() — it wipes sessionStorage, which is needed for reload recovery
-    if (ws) { ws.onclose = null; ws.close(); ws = null; isConnected = false; }
+    if (ws) { ws.onclose = null; ws.close(); ws = null; widgetState.updateConnection(false); }
     destroyWidget();
   });
   connectWS(sendMessage);
