@@ -20,6 +20,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   let submittedOids: string[] = [];
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
   let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
+  let restoreObserver: MutationObserver | null = null;
 
   document.addEventListener("keydown", (e: KeyboardEvent) => { if (e.key === "Alt") isAltDown = true; });
   document.addEventListener("keyup", (e: KeyboardEvent) => { if (e.key === "Alt") { isAltDown = false; hideHoverTooltip(); } });
@@ -138,7 +139,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     );
     if (missingOids.length === 0) return;
 
-    const observer = new MutationObserver(() => {
+    restoreObserver = new MutationObserver(() => {
       const stillMissing = missingOids.filter(
         (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0 && !findByOid(s.dataOid),
       );
@@ -160,15 +161,16 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       );
       if (remaining.length === 0) {
         sessionStorage.removeItem("pi-design-selections");
-        observer.disconnect();
+        restoreObserver?.disconnect();
+        restoreObserver = null;
       }
     });
-    observer.observe(document.body || document.documentElement, {
+    restoreObserver.observe(document.body || document.documentElement, {
       childList: true,
       subtree: true,
     });
     // Safety: stop watching after 10s regardless
-    setTimeout(() => observer.disconnect(), 10000);
+    setTimeout(() => { restoreObserver?.disconnect(); restoreObserver = null; }, 10000);
   }
 
   function getHistory(): string[] {
@@ -626,6 +628,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   function destroyWidget() {
     if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
     if (errorBannerTimer) { clearTimeout(errorBannerTimer); errorBannerTimer = null; }
+    if (restoreObserver) { restoreObserver.disconnect(); restoreObserver = null; }
     const host = document.getElementById(WIDGET_ID);
     if (host) host.remove();
     delete (window as any).__piDesignWidget;
