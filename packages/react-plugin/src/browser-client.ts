@@ -29,7 +29,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   const widgetState = createWidgetState();
   let isAltDown = false;
   let lastSelections: any[] = [];
-  let submittedOids: string[] = [];
+  let submittedSelections: any[] = [];
   let processingTimer: ReturnType<typeof setTimeout> | null = null;
   let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
   let restoreObserver: MutationObserver | null = null;
@@ -371,7 +371,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if (!instruction) return;
   historyMod.saveHistory(instruction);
       const structuralContext = computeStructuralContext();
-      submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+      submittedSelections = selectionMod.getSelections().slice();
       sendMessage.send({
         type: "design:submit",
         selections: selectionMod.getSelections().map((s) => ({
@@ -409,7 +409,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         cancelBtn.style.display = "none";
         if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
         if (value) {
-          submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+          submittedSelections = selectionMod.getSelections().slice();
           for (const sel of selectionMod.getSelections()) clearHighlight(sel);
           processingTimer = setTimeout(() => {
             if (widgetState.isProcessing()) cancelBtn.style.display = "inline";
@@ -471,19 +471,17 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   selectionMod.setRender(render);
 
   function flashEditedElements() {
-    if (submittedOids.length === 0) return;
+    if (submittedSelections.length === 0) return;
     let flashed = 0;
-    for (const oid of submittedOids) {
-      // Find selection for instance-aware resolution
-      const sel = selectionMod.getSelections().find((s) => s.dataOid === oid);
-      const el = sel ? resolveSelectionElement(sel) : findByOid(oid);
+    for (const sel of submittedSelections) {
+      const el = resolveSelectionElement(sel);
       if (el) {
         flashed++;
         (el as HTMLElement).style.outline = "2px solid #a6e3a1";
         (el as HTMLElement).style.outlineOffset = "2px";
-        ((element: Element, dataOid: string) => {
+        ((element: Element, selRef: any) => {
           setTimeout(() => {
-            const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === dataOid);
+            const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === selRef.dataOid && s.instanceIndex === selRef.instanceIndex);
             if (selIdx >= 0) {
               applyHighlight(selectionMod.getSelections()[selIdx], SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
             } else {
@@ -491,11 +489,11 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
               (element as HTMLElement).style.outlineOffset = "";
             }
           }, 2000);
-        })(el, oid);
+        })(el, sel);
       }
     }
-    console.log(`[pi-design] Flashed ${flashed}/${submittedOids.length} elements`);
-    submittedOids = [];
+    console.log(`[pi-design] Flashed ${flashed}/${submittedSelections.length} elements`);
+    submittedSelections = [];
   }
 
   function showSuccess() {

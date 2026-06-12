@@ -740,7 +740,7 @@
         if (!instruction) return;
         historyMod.saveHistory(instruction);
         const structuralContext = computeStructuralContext2();
-        submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+        submittedSelections = selectionMod.getSelections().slice();
         sendMessage2.send({
           type: "design:submit",
           selections: selectionMod.getSelections().map((s) => ({
@@ -778,7 +778,7 @@
             processingTimer = null;
           }
           if (value) {
-            submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
+            submittedSelections = selectionMod.getSelections().slice();
             for (const sel of selectionMod.getSelections()) clearHighlight2(sel);
             processingTimer = setTimeout(() => {
               if (widgetState.isProcessing()) cancelBtn.style.display = "inline";
@@ -843,18 +843,17 @@
         selectionsContainer.innerHTML = '<div style="color:#6c7086;font-size:12px;padding:4px 0;">No element selected</div>';
       }
     }, flashEditedElements = function() {
-      if (submittedOids.length === 0) return;
+      if (submittedSelections.length === 0) return;
       let flashed = 0;
-      for (const oid of submittedOids) {
-        const sel = selectionMod.getSelections().find((s) => s.dataOid === oid);
-        const el = sel ? resolveSelectionElement(sel) : findByOid(oid);
+      for (const sel of submittedSelections) {
+        const el = resolveSelectionElement(sel);
         if (el) {
           flashed++;
           el.style.outline = "2px solid #a6e3a1";
           el.style.outlineOffset = "2px";
-          ((element, dataOid) => {
+          ((element, selRef) => {
             setTimeout(() => {
-              const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === dataOid);
+              const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === selRef.dataOid && s.instanceIndex === selRef.instanceIndex);
               if (selIdx >= 0) {
                 applyHighlight2(selectionMod.getSelections()[selIdx], SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
               } else {
@@ -862,11 +861,11 @@
                 element.style.outlineOffset = "";
               }
             }, 2e3);
-          })(el, oid);
+          })(el, sel);
         }
       }
-      console.log(`[pi-design] Flashed ${flashed}/${submittedOids.length} elements`);
-      submittedOids = [];
+      console.log(`[pi-design] Flashed ${flashed}/${submittedSelections.length} elements`);
+      submittedSelections = [];
     }, showSuccess = function() {
       if (hint) {
         hint.textContent = "\u2713 Changes applied";
@@ -976,7 +975,7 @@
     const widgetState = createWidgetState();
     let isAltDown = false;
     let lastSelections = [];
-    let submittedOids = [];
+    let submittedSelections = [];
     let processingTimer = null;
     let errorBannerTimer = null;
     let restoreObserver = null;
