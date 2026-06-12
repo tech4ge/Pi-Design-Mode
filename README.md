@@ -79,6 +79,25 @@ export default function RootLayout({ children }) {
 /design
 ```
 
+## Installing from GitHub
+
+You can install directly from the GitHub repository without publishing to npm:
+
+```bash
+# Latest main branch
+npm install github:earendil-works/pi-design-mode
+
+# Specific branch or tag
+npm install github:earendil-works/pi-design-mode#feature/my-branch
+
+# Specific commit
+npm install github:earendil-works/pi-design-mode#a1b2c3d
+```
+
+This uses npm's [GitHub dependency](https://docs.npmjs.com/cli/v10/commands/npm-install#github-repository) support. npm will clone the repo and run `npm install` in each workspace, then resolve the packages from the monorepo.
+
+> **Note:** GitHub installs work out of the box because `dist/` files are committed. If you want to build from source instead, clone the repo and run `npm run build` in each package.
+
 ## How It Works
 
 1. **Data attributes** — The Vite plugin (Babel) or Next.js SWC plugin injects `data-oid` attributes onto every JSX element during development, encoding the source file location.
@@ -123,13 +142,49 @@ Override the WebSocket port (default: 9481). Set before the client script loads:
 |---|---|
 | `/design` | Toggle design mode on/off. Starts the WS server and waits for browser connections. |
 
+## Architecture
+
+The project is a monorepo with two packages:
+
+- **`@pi-design/react-plugin`** — Vite plugin, Next.js component, browser client, and source transform. Published to npm.
+- **`@pi-design/extension`** — Pi extension providing the `/design` command and WebSocket server. Installed locally into Pi.
+
+The browser client (`packages/react-plugin/src/browser-client.ts`) is built as a single IIFE and injected into the page at runtime. Business logic is extracted into testable modules under `browser-client/`:
+
+| Module | Purpose |
+|--------|---------|
+| `history.ts` | Instruction history in localStorage |
+| `hover-tooltip.ts` | Alt+Hover tooltip |
+| `selection.ts` | Selection array management |
+| `click-handler.ts` | Build selection data from click target |
+| `connection.ts` | Server message routing |
+| `widget.ts` | Widget state (connected, processing, error) |
+| `utils.ts` | escapeHtml, getSelector, computeStructuralContext |
+| `highlight.ts` | DOM highlight application |
+| `widget-dom.ts` | Widget shadow DOM creation |
+| `widget-template.ts` | CSS + HTML template constants |
+
 ## Development
 
-### Build the extension
+### Build
 
 ```bash
-cd packages/extension
+# Both packages
 npm run build
+
+# Individual packages
+cd packages/react-plugin && npm run build
+cd packages/extension && npm run build
+```
+
+### Run tests
+
+```bash
+# React-plugin tests (92)
+cd packages/react-plugin && npm test
+
+# Extension tests (21)
+cd packages/extension && npm test
 ```
 
 ### Install the extension locally
@@ -143,25 +198,9 @@ cp packages/extension/package.json ~/.pi/agent/extensions/pi-design-mode/
 
 Then reload Pi with `/reload`.
 
-### Build the react-plugin
-
-```bash
-cd packages/react-plugin
-npm run build
-```
-
-### Run tests
-
-```bash
-# Extension tests (21)
-cd packages/extension && npm test
-
-# React-plugin tests (24)
-cd packages/react-plugin && npm test
-```
-
 ### Verify npm package contents
 
 ```bash
 cd packages/react-plugin && npm pack --dry-run
+cd packages/extension && npm pack --dry-run
 ```
