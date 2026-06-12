@@ -4,8 +4,8 @@ import { createSelectionManager } from "../src/browser-client/selection.js";
 describe("createSelectionManager", () => {
   let sm: ReturnType<typeof createSelectionManager>;
   let sentMessages: any[];
-  let highlighted: string[];
-  let unhighlighted: string[];
+  let highlighted: any[];
+  let unhighlighted: any[];
   let rendered: number;
 
   beforeEach(() => {
@@ -14,8 +14,8 @@ describe("createSelectionManager", () => {
     unhighlighted = [];
     rendered = 0;
     sm = createSelectionManager({
-      applyHighlight: (oid: string) => { highlighted.push(oid); },
-      clearHighlight: (oid: string) => { unhighlighted.push(oid); },
+      applyHighlight: (sel: any) => { highlighted.push(sel); },
+      clearHighlight: (sel: any) => { unhighlighted.push(sel); },
       reapplyAllHighlights: () => {},
       persistSelections: () => {},
     });
@@ -40,10 +40,20 @@ describe("createSelectionManager", () => {
     expect(sm.getSelections()).toHaveLength(2);
   });
 
-  it("addSelection sends deselect when toggling off", () => {
-    sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
-    sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
-    expect(sentMessages).toContainEqual({ type: "design:deselect", dataOid: "c:abc:r:src/Foo.tsx:10:5" });
+  it("addSelection passes full selection to applyHighlight", () => {
+    const sel = { dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 2, tagName: "input" };
+    sm.addSelection(sel);
+    expect(highlighted).toHaveLength(1);
+    expect(highlighted[0].instanceIndex).toBe(2);
+    expect(highlighted[0].tagName).toBe("input");
+  });
+
+  it("removeSelection clears highlight with full selection object", () => {
+    const sel = { dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 };
+    sm.addSelection(sel);
+    sm.removeSelection("c:abc:r:src/Foo.tsx:10:5", 0);
+    expect(unhighlighted).toHaveLength(1);
+    expect(unhighlighted[0].instanceIndex).toBe(0);
   });
 
   it("removeSelection removes by dataOid + instanceIndex", () => {
@@ -61,12 +71,6 @@ describe("createSelectionManager", () => {
     expect(sm.getSelections()).toHaveLength(0);
   });
 
-  it("removeSelection sends deselect", () => {
-    sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
-    sm.removeSelection("c:abc:r:src/Foo.tsx:10:5", 0);
-    expect(sentMessages).toContainEqual({ type: "design:deselect", dataOid: "c:abc:r:src/Foo.tsx:10:5" });
-  });
-
   it("clearAllSelections clears all and sends deselect __all__", () => {
     sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
     sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:20:3", instanceIndex: 0 });
@@ -75,17 +79,21 @@ describe("createSelectionManager", () => {
     expect(sentMessages).toContainEqual({ type: "design:deselect", dataOid: "__all__" });
   });
 
-  it("clearAllSelections unhighlights all", () => {
-    sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
-    sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:20:3", instanceIndex: 0 });
+  it("clearAllSelections unhighlights all with full selection objects", () => {
+    const sel0 = { dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 };
+    const sel1 = { dataOid: "c:abc:r:src/Foo.tsx:20:3", instanceIndex: 0 };
+    sm.addSelection(sel0);
+    sm.addSelection(sel1);
     sm.clearAllSelections();
-    expect(unhighlighted).toContain("c:abc:r:src/Foo.tsx:10:5");
-    expect(unhighlighted).toContain("c:abc:r:src/Foo.tsx:20:3");
+    expect(unhighlighted).toHaveLength(2);
+    expect(unhighlighted[0].dataOid).toBe("c:abc:r:src/Foo.tsx:10:5");
+    expect(unhighlighted[1].dataOid).toBe("c:abc:r:src/Foo.tsx:20:3");
   });
 
-  it("addSelection highlights the item", () => {
+  it("addSelection sends deselect when toggling off", () => {
     sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
-    expect(highlighted).toContain("c:abc:r:src/Foo.tsx:10:5");
+    sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
+    expect(sentMessages).toContainEqual({ type: "design:deselect", dataOid: "c:abc:r:src/Foo.tsx:10:5" });
   });
 
   it("addSelection renders after adding", () => {

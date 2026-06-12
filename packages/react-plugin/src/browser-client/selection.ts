@@ -6,8 +6,8 @@
  */
 
 interface SelectionDeps {
-  applyHighlight: (dataOid: string) => void;
-  clearHighlight: (dataOid: string) => void;
+  applyHighlight: (sel: any) => void;
+  clearHighlight: (sel: any) => void;
   reapplyAllHighlights: () => void;
   persistSelections: () => void;
 }
@@ -40,20 +40,26 @@ export function createSelectionManager(deps: SelectionDeps) {
       return false;
     }
     selections.push(sel);
-    applyHighlight(sel.dataOid);
+    applyHighlight(sel);
     persistSelections();
     _render?.();
     return true;
   }
 
   function removeSelection(dataOid: string, instanceIndex?: number) {
+    const removed = selections.filter((s) => {
+      if (instanceIndex !== undefined) {
+        return s.dataOid === dataOid && s.instanceIndex === instanceIndex;
+      }
+      return s.dataOid === dataOid;
+    });
     selections = selections.filter((s) => {
       if (instanceIndex !== undefined) {
         return !(s.dataOid === dataOid && s.instanceIndex === instanceIndex);
       }
       return s.dataOid !== dataOid;
     });
-    clearHighlight(dataOid);
+    for (const sel of removed) clearHighlight(sel);
     sendMessage?.send({ type: "design:deselect", dataOid });
     persistSelections();
     reapplyAllHighlights();
@@ -61,7 +67,7 @@ export function createSelectionManager(deps: SelectionDeps) {
   }
 
   function clearAllSelections() {
-    for (const sel of selections) clearHighlight(sel.dataOid);
+    for (const sel of selections) clearHighlight(sel);
     selections = [];
     sendMessage?.send({ type: "design:deselect", dataOid: "__all__" });
     persistSelections();

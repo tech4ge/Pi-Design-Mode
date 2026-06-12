@@ -105,7 +105,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if (!el) continue;
       s.elementRef = new WeakRef(el);
       selectionMod.getSelections().push(s);
-      applyHighlight(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+      applyHighlight(s, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
       found++;
     }
     if (found > 0) {
@@ -132,7 +132,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       for (const s of nowFound) {
         s.elementRef = new WeakRef(resolveSelectionElement(s));
         selectionMod.getSelections().push(s);
-        applyHighlight(s.dataOid, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+        applyHighlight(s, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
       }
       render();
 
@@ -213,14 +213,12 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   // --- Selection management ---
 
-  function applyHighlight(dataOid: string, color: string) {
-    const sel = selectionMod.getSelections().find((s) => s.dataOid === dataOid);
-    applyHighlightImpl(dataOid, color, findByOid, resolveSelectionElement, sel);
+  function applyHighlight(sel: any, color: string) {
+    applyHighlightImpl(sel.dataOid, color, findByOid, resolveSelectionElement, sel);
   }
 
-  function clearHighlight(dataOid: string) {
-    const sel = selectionMod.getSelections().find((s) => s.dataOid === dataOid);
-    clearHighlightImpl(dataOid, findByOid, resolveSelectionElement, sel);
+  function clearHighlight(sel: any) {
+    clearHighlightImpl(sel.dataOid, findByOid, resolveSelectionElement, sel);
   }
 
   function reapplyAllHighlights() {
@@ -229,7 +227,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   // --- Selection module (instantiated after highlight functions) ---
   selectionMod = createSelectionManager({
-    applyHighlight: (dataOid: string) => applyHighlight(dataOid, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
+    applyHighlight: (sel: any) => applyHighlight(sel, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
     clearHighlight,
     reapplyAllHighlights,
     persistSelections,
@@ -413,7 +411,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
         if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
         if (value) {
           submittedOids = selectionMod.getSelections().map((s) => s.dataOid);
-          for (const sel of selectionMod.getSelections()) clearHighlight(sel.dataOid);
+          for (const sel of selectionMod.getSelections()) clearHighlight(sel);
           processingTimer = setTimeout(() => {
             if (widgetState.isProcessing()) cancelBtn.style.display = "inline";
           }, 60000);
@@ -488,7 +486,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
           setTimeout(() => {
             const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === dataOid);
             if (selIdx >= 0) {
-              applyHighlight(dataOid, SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
+              applyHighlight(selectionMod.getSelections()[selIdx], SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
             } else {
               (element as HTMLElement).style.outline = "";
               (element as HTMLElement).style.outlineOffset = "";

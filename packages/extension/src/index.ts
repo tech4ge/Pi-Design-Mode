@@ -165,7 +165,7 @@ export default function (pi: ExtensionAPI) {
 
       case "design:select": {
         currentSelection = currentSelection.filter(
-          (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
+          (s) => s.type === "design:select" && !(s.dataOid === message.dataOid && s.instanceIndex === message.instanceIndex),
         );
         currentSelection.push(message);
         updateWidget(ctx);
@@ -176,6 +176,9 @@ export default function (pi: ExtensionAPI) {
         if (message.dataOid === "__all__") {
           currentSelection = [];
         } else {
+          // Remove by dataOid only — the client sends deselect per dataOid,
+          // not per instance. (If instance-aware deselect is needed later,
+          // the client will need to send instanceIndex too.)
           currentSelection = currentSelection.filter(
             (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
           );
