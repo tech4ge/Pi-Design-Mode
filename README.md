@@ -1,5 +1,7 @@
 # Pi Design Mode
 
+![Pi Design Mode demo](https://github.com/user-attachments/assets/REPLACE-WITH-GIF-URL)
+
 Click elements in your browser, describe changes, and the LLM edits your source code with instant HMR preview. A Cursor Design Mode–style workflow for terminal-based React/Next.js development with [Pi](https://github.com/earendil-works/pi-coding-agent).
 
 ## Quick Start: Vite + React
