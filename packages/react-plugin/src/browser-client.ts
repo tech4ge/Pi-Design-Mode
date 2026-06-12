@@ -102,30 +102,73 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     } catch {}
   }
 
-  function restoreSelections(retryCount = 0) {
+  function restoreSelections() {
     try {
       const saved = sessionStorage.getItem("pi-design-selections");
       if (!saved) return;
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed) || parsed.length === 0 || selections.length > 0) return;
-      let found = 0;
-      for (const s of parsed) {
-        const el = findByOid(s.dataOid);
-        if (!el) continue;
-        if (selections.findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
+
+      // First pass — restore what we can now
+      applyRestoredSelections(parsed);
+    } catch {}
+  }
+
+  function applyRestoredSelections(saved: any[]) {
+    let found = 0;
+    for (const s of saved) {
+      if (selections.findIndex((x) => x.dataOid === s.dataOid) >= 0) continue;
+      const el = findByOid(s.dataOid);
+      if (!el) continue;
+      selections.push(s);
+      applyHighlight(s.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
+      found++;
+    }
+    if (found > 0) {
+      render();
+      if (found >= saved.length) {
+        sessionStorage.removeItem("pi-design-selections");
+        return;
+      }
+    }
+
+    // Some elements not in DOM yet — watch for them via MutationObserver
+    const missingOids = saved.filter(
+      (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0,
+    );
+    if (missingOids.length === 0) return;
+
+    const observer = new MutationObserver(() => {
+      const stillMissing = missingOids.filter(
+        (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0 && !findByOid(s.dataOid),
+      );
+      if (stillMissing.length === missingOids.length) return; // no change yet
+
+      // At least one element appeared — try restoring again
+      const nowFound = missingOids.filter(
+        (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0 && findByOid(s.dataOid) !== null,
+      );
+      for (const s of nowFound) {
         selections.push(s);
         applyHighlight(s.dataOid, SELECTION_COLORS[(selections.length - 1) % SELECTION_COLORS.length]);
-        found++;
       }
-      if (found > 0) {
-        render();
-        // Only clear sessionStorage once we've successfully restored everything
-        if (found >= parsed.length) sessionStorage.removeItem("pi-design-selections");
-      } else if (retryCount < 10) {
-        // DOM not ready yet (e.g. Next.js hydration) — retry after a short delay
-        setTimeout(() => restoreSelections(retryCount + 1), 300);
+      render();
+
+      // All restored?
+      const remaining = missingOids.filter(
+        (s) => selections.findIndex((x) => x.dataOid === s.dataOid) < 0,
+      );
+      if (remaining.length === 0) {
+        sessionStorage.removeItem("pi-design-selections");
+        observer.disconnect();
       }
-    } catch {}
+    });
+    observer.observe(document.body || document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+    // Safety: stop watching after 10s regardless
+    setTimeout(() => observer.disconnect(), 10000);
   }
 
   function getHistory(): string[] {
