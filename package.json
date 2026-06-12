@@ -1,11 +1,61 @@
 {
-  "name": "pi-design-mode",
-  "private": true,
-  "workspaces": [
-    "packages/*"
+  "name": "@pi-design/react-plugin",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "packages/react-plugin/dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./packages/react-plugin/dist/index.js",
+      "default": "./packages/react-plugin/dist/index.js"
+    },
+    "./vite": {
+      "import": "./packages/react-plugin/dist/vite-plugin.js",
+      "default": "./packages/react-plugin/dist/vite-plugin.js"
+    },
+    "./data-oid": {
+      "import": "./packages/react-plugin/dist/data-oid.js",
+      "default": "./packages/react-plugin/dist/data-oid.js"
+    },
+    "./data-oid/shared": {
+      "import": "./packages/react-plugin/dist/data-oid-shared.js",
+      "default": "./packages/react-plugin/dist/data-oid-shared.js"
+    },
+    "./transform": {
+      "import": "./packages/react-plugin/dist/transform.js",
+      "default": "./packages/react-plugin/dist/transform.js"
+    },
+    "./browser-client": {
+      "import": "./packages/react-plugin/dist/browser-client.js",
+      "default": "./packages/react-plugin/dist/browser-client.js"
+    },
+    "./next": {
+      "import": "./packages/react-plugin/dist/next.js",
+      "default": "./packages/react-plugin/dist/next.js"
+    },
+    "./protocol": {
+      "import": "./packages/react-plugin/dist/protocol.js",
+      "default": "./packages/react-plugin/dist/protocol.js"
+    }
+  },
+  "files": [
+    "packages/react-plugin/dist/*.js"
   ],
   "scripts": {
     "build": "npm run build --workspaces"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.29.7",
+    "@babel/parser": "^7.29.7",
+    "@babel/traverse": "^7.29.7",
+    "@babel/types": "^7.29.7"
+  },
+  "peerDependencies": {
+    "vite": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
   },
   "pi": {
     "extensions": ["./packages/extension/dist/index.js"]
