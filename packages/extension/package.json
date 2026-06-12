@@ -3,9 +3,13 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
+    "build": "tsup",
     "test": "vitest run"
+  },
+  "pi": {
+    "extensions": ["./dist/index.js"]
   },
   "dependencies": {
     "@babel/generator": "^7.29.7",
@@ -16,6 +20,8 @@
   },
   "devDependencies": {
     "@types/ws": "^8.18.1",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }
 }

@@ -3,7 +3,7 @@ import { parse } from "@babel/parser";
 import _traverse from "@babel/traverse";
 
 const traverse = _traverse.default || _traverse;
-import { parseDataOid, type DataOidComponents } from "./data-oid.js";
+import { parseDataOid, type DataOidComponents } from "@pi-design/react-plugin/data-oid";
 
 export interface InspectResult {
   tagName: string;
