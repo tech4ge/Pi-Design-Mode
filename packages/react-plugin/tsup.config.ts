@@ -6,7 +6,8 @@ export default defineConfig([
     entry: {
       index: "src/index.ts",
       "vite-plugin": "src/vite-plugin.ts",
-      "data-oid": "src/data-oid.ts",
+      "data-oid": "src/data-oid/index.ts",
+      "data-oid-shared": "src/data-oid/shared.ts",
       transform: "src/transform.ts",
       next: "src/next.tsx",
     },
@@ -18,7 +19,6 @@ export default defineConfig([
     external: ["react", "react-dom", "@pi-design/react-plugin/browser-client", "fs", "path", "url"],
   },
   // Browser client — self-contained IIFE, auto-executes on load
-  // After build, we rename .global.js → .js for clean import path
   {
     entry: {
       "browser-client": "src/browser-client.ts",

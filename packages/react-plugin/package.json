@@ -17,6 +17,10 @@
       "import": "./dist/data-oid.js",
       "default": "./dist/data-oid.js"
     },
+    "./data-oid/shared": {
+      "import": "./dist/data-oid-shared.js",
+      "default": "./dist/data-oid-shared.js"
+    },
     "./transform": {
       "import": "./dist/transform.js",
       "default": "./dist/transform.js"

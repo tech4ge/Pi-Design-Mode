@@ -5,7 +5,7 @@ import _generate from "@babel/generator";
 // @babel CJS/ESM interop
 const traverse = _traverse.default || _traverse;
 const generate = _generate.default || _generate;
-import { formatDataOid, hashProjectRoot } from "./data-oid.js";
+import { formatDataOid, hashProjectRoot } from "./data-oid/index.js";
 
 /**
  * Inject data-oid attributes into JSX source code.
