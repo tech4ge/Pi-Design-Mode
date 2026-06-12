@@ -174,7 +174,7 @@
         return s.dataOid !== dataOid;
       });
       for (const sel of removed) clearHighlight2(sel);
-      sendMessage == null ? void 0 : sendMessage.send({ type: "design:deselect", dataOid });
+      sendMessage == null ? void 0 : sendMessage.send({ type: "design:deselect", dataOid, instanceIndex });
       persistSelections();
       reapplyAllHighlights2();
       _render == null ? void 0 : _render();

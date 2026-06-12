@@ -60,7 +60,7 @@ export function createSelectionManager(deps: SelectionDeps) {
       return s.dataOid !== dataOid;
     });
     for (const sel of removed) clearHighlight(sel);
-    sendMessage?.send({ type: "design:deselect", dataOid });
+    sendMessage?.send({ type: "design:deselect", dataOid, instanceIndex });
     persistSelections();
     reapplyAllHighlights();
     _render?.();

@@ -93,7 +93,7 @@ describe("createSelectionManager", () => {
   it("addSelection sends deselect when toggling off", () => {
     sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
     sm.addSelection({ dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
-    expect(sentMessages).toContainEqual({ type: "design:deselect", dataOid: "c:abc:r:src/Foo.tsx:10:5" });
+    expect(sentMessages).toContainEqual({ type: "design:deselect", dataOid: "c:abc:r:src/Foo.tsx:10:5", instanceIndex: 0 });
   });
 
   it("addSelection renders after adding", () => {

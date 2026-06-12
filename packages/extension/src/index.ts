@@ -175,10 +175,13 @@ export default function (pi: ExtensionAPI) {
       case "design:deselect": {
         if (message.dataOid === "__all__") {
           currentSelection = [];
+        } else if (message.instanceIndex !== undefined) {
+          // Remove specific instance only
+          currentSelection = currentSelection.filter(
+            (s) => s.type === "design:select" || s.dataOid !== message.dataOid || s.instanceIndex !== message.instanceIndex,
+          );
         } else {
-          // Remove by dataOid only — the client sends deselect per dataOid,
-          // not per instance. (If instance-aware deselect is needed later,
-          // the client will need to send instanceIndex too.)
+          // Remove all instances of this dataOid
           currentSelection = currentSelection.filter(
             (s) => s.type === "design:select" && s.dataOid !== message.dataOid,
           );
@@ -195,7 +198,11 @@ export default function (pi: ExtensionAPI) {
           const parsed = parseDataOid(sel.dataOid);
           const filePath = parsed ? resolve(cwd, parsed.filePath) : undefined;
           const location = filePath ? `${filePath}:${parsed.line}` : sel.dataOid;
-          content += `Selected: <${sel.tagName}> at ${location}\n`;
+          const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
+          content += `Selected: <${sel.tagName}${instanceLabel}> at ${location}\n`;
+          if (sel.structuralSelector) {
+            content += `CSS Path: ${sel.structuralSelector}\n`;
+          }
           content += `Styles: ${Object.entries(sel.computedStyles).map(([k, v]) => `${k}: ${v}`).join(", ")}\n`;
           content += `Position: ${sel.boundingBox.x},${sel.boundingBox.y} (${sel.boundingBox.width}×${sel.boundingBox.height})\n\n`;
         }
@@ -227,6 +234,8 @@ export default function (pi: ExtensionAPI) {
           details: {
             selections: selections.map((s) => ({
               dataOid: s.dataOid,
+              instanceIndex: s.instanceIndex,
+              structuralSelector: s.structuralSelector,
               tagName: s.tagName,
               computedStyles: s.computedStyles,
               boundingBox: s.boundingBox,
