@@ -318,7 +318,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       .qa-btn:disabled { opacity: 0.4; cursor: not-allowed; }
       .history-panel { position: absolute; top: 8px; right: calc(100% - 1px); bottom: 8px; width: 200px; background: #1e1e2e; border: 1px solid #45475a; border-right: none; border-radius: 12px 0 0 12px; padding: 8px 0; overflow-y: auto; display: none; flex-direction: column; box-shadow: -4px 4px 16px rgba(0,0,0,0.2); }
       .history-panel-title { padding: 4px 10px 8px; font-size: 11px; color: #6c7086; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-      .history-item { padding: 6px 10px; font-size: 12px; color: #cdd6f4; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .history-item { padding: 6px 10px; font-size: 12px; line-height: 1.4; color: #cdd6f4; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
       .history-item:hover { background: #313244; }
       .history-clear { padding: 8px 10px; font-size: 11px; color: #f38ba8; cursor: pointer; text-align: center; border-top: 1px solid #313244; margin-top: auto; }
       .history-clear:hover { background: #313244; }
