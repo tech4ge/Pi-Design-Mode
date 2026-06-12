@@ -33,6 +33,10 @@
     "./next": {
       "import": "./dist/next.js",
       "default": "./dist/next.js"
+    },
+    "./protocol": {
+      "import": "./dist/protocol.js",
+      "default": "./dist/protocol.js"
     }
   },
   "files": [
