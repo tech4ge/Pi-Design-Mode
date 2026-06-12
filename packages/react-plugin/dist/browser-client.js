@@ -998,7 +998,7 @@
     let historyMod = createHistory({ localStorage, input: null, historyDropdown: null });
     let ws = null;
     selectionMod = createSelectionManager({
-      applyHighlight: (sel) => applyHighlight2(sel, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
+      applyHighlight: (sel) => applyHighlight2(sel, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]),
       clearHighlight: clearHighlight2,
       reapplyAllHighlights: reapplyAllHighlights2,
       persistSelections

@@ -227,7 +227,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   // --- Selection module (instantiated after highlight functions) ---
   selectionMod = createSelectionManager({
-    applyHighlight: (sel: any) => applyHighlight(sel, SELECTION_COLORS[selectionMod.getSelections().length % SELECTION_COLORS.length]),
+    applyHighlight: (sel: any) => applyHighlight(sel, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]),
     clearHighlight,
     reapplyAllHighlights,
     persistSelections,
