@@ -4,6 +4,7 @@ import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { createHistory } from "./browser-client/history.js";
 import { createHoverTooltip } from "./browser-client/hover-tooltip.js";
 import { createSelectionManager } from "./browser-client/selection.js";
+import { buildSelectionData } from "./browser-client/click-handler.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -650,14 +651,11 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       send(msg: any) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg)); },
       isConnected() { return ws !== null && ws.readyState === WebSocket.OPEN; },
     };
-    const selectionData = {
-      dataOid,
-      selector: getSelector(target),
-      computedStyles: getComputedStyles(target),
-      boundingBox: getBoundingBox(target),
-      tagName: target.tagName.toLowerCase(),
-      textContent: (target.textContent || "").slice(0, 200),
-    };
+    const selectionData = buildSelectionData(target, {
+      getSelector,
+      getComputedStyles,
+      getBoundingBox,
+    });
     const wasAdded = addSelection(selectionData, sendMessage);
     if (wasAdded && ws && isConnected) {
       sendMessage.send({
