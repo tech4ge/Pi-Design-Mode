@@ -106,6 +106,12 @@ export default function RootLayout({ children }) {
 /design
 ```
 
+## Uninstall
+
+1. Remove the Pi extension: `pi remove git:github.com/tech4ge/Pi-Design-Mode`
+2. Remove the npm package: `npm uninstall @pi-design/react-plugin`
+3. Remove the plugin from your Vite or Next.js config
+
 ## How It Works
 
 1. **Data attributes** — The Vite plugin (Babel) or Next.js SWC plugin injects source-location attributes onto every JSX element during development, encoding the source file path and line number.
