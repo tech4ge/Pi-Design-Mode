@@ -6,18 +6,32 @@
  */
 
 /**
+ * Minimal CSS value escaper — handles characters that appear in data-oid values.
+ * Falls back to CSS.escape in browser contexts where available.
+ */
+function defaultCssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(value);
+  // Minimal: escape quotes and backslashes for attribute selector values
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
  * Find an element's position among siblings sharing the same data-oid.
+ * Returns -1 if the element is not found in the query result
+ * (e.g. DOM changed between click and resolution).
  */
 export function getInstanceIndex(
   element: Element,
   dataOid: string,
   querySelectorAll: (selector: string) => Element[],
+  cssEscape: (value: string) => string = defaultCssEscape,
 ): number {
-  const all = querySelectorAll(`[data-oid="${dataOid}"],[data-source="${dataOid}"]`);
+  const escaped = cssEscape(dataOid);
+  const all = querySelectorAll(`[data-oid="${escaped}"],[data-source="${escaped}"]`);
   for (let i = 0; i < all.length; i++) {
     if (all[i] === element) return i;
   }
-  return 0;
+  return -1;
 }
 
 export interface ResolvedSelection {
@@ -38,17 +52,21 @@ export function resolveElement(
   selection: ResolvedSelection,
   querySelectorAll: (selector: string) => Element[],
   querySelector: (selector: string) => Element | null,
+  cssEscape: (value: string) => string = defaultCssEscape,
 ): Element | null {
   // 1. Try WeakRef
   const el = selection.elementRef.deref();
-  if (el && (el as any).isConnected === true) {
+  if (el?.isConnected === true) {
     return el;
   }
 
-  // 2. Try querySelectorAll + instanceIndex
-  const all = querySelectorAll(`[data-oid="${selection.dataOid}"],[data-source="${selection.dataOid}"]`);
-  if (selection.instanceIndex < all.length) {
-    return all[selection.instanceIndex];
+  // 2. Try querySelectorAll + instanceIndex (skip if index is -1)
+  if (selection.instanceIndex >= 0) {
+    const escaped = cssEscape(selection.dataOid);
+    const all = querySelectorAll(`[data-oid="${escaped}"],[data-source="${escaped}"]`);
+    if (selection.instanceIndex < all.length) {
+      return all[selection.instanceIndex];
+    }
   }
 
   // 3. Try structural selector

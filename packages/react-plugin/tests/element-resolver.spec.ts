@@ -17,6 +17,15 @@ describe("getInstanceIndex", () => {
 
     expect(getInstanceIndex(el2, "oid1", querySelectorAll)).toBe(2);
   });
+
+  it("returns -1 when element is not found in query result", () => {
+    const unrelated = {} as Element;
+    const el0 = {} as Element;
+    const el1 = {} as Element;
+    const querySelectorAll = () => [el0, el1];
+
+    expect(getInstanceIndex(unrelated, "oid1", querySelectorAll)).toBe(-1);
+  });
 });
 
 describe("computeStructuralSelector", () => {
@@ -122,6 +131,22 @@ describe("resolveElement", () => {
 
     const result = resolveElement(selection, () => [], () => null);
     expect(result).toBeNull();
+  });
+
+  it("skips querySelectorAll path when instanceIndex is -1", () => {
+    const el = {} as Element;
+    const ref = new WeakRef({ isConnected: false } as Element);
+    const selection = { dataOid: "oid1", instanceIndex: -1, elementRef: ref, structuralSelector: "div > span" };
+
+    // querySelectorAll should not be called (would return wrong element)
+    let called = false;
+    const result = resolveElement(
+      selection,
+      () => { called = true; return [el]; },
+      (s: string) => s === "div > span" ? el : null,
+    );
+    expect(called).toBe(false);
+    expect(result).toBe(el);
   });
 });
 
