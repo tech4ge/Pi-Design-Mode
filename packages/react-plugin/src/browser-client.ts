@@ -1,6 +1,7 @@
 import { parseDataOid } from "./data-oid/shared.js";
 import { reconnectPolicy } from "./reconnect-policy.js";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
+import { createHistory } from "./browser-client/history.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -163,18 +164,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     setTimeout(() => { restoreObserver?.disconnect(); restoreObserver = null; }, 10000);
   }
 
-  function getHistory(): string[] {
-    try { const h = localStorage.getItem("pi-design-history"); return h ? JSON.parse(h) : []; } catch { return []; }
-  }
-
-  function saveHistory(instruction: string) {
-    if (!instruction.trim()) return;
-    let h = getHistory();
-    h = h.filter((x) => x !== instruction);
-    h.unshift(instruction);
-    if (h.length > 20) h = h.slice(0, 20);
-    try { localStorage.setItem("pi-design-history", JSON.stringify(h)); } catch {}
-  }
+  let historyMod = createHistory({ localStorage, input: null as any, historyDropdown: null as any });
 
   // --- WebSocket ---
 
@@ -415,6 +405,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     qaMultiBtns = shadow.querySelectorAll(".qa-btn[data-multi]");
     hint = shadow.querySelector(".hint")!;
 
+    // Re-initialize history with actual DOM elements
+    historyMod = createHistory({ localStorage, input, historyDropdown });
+
     // Wire up events
     closeBtn.addEventListener("click", () => disconnect(sendMessage));
 
@@ -432,14 +425,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitBtn.click(); }
     });
 
-    input.addEventListener("focus", () => { widget.classList.add("expanded"); showHistory(); });
+    input.addEventListener("focus", () => { widget.classList.add("expanded"); historyMod.showHistory(); });
     input.addEventListener("blur", () => { widget.classList.remove("expanded"); setTimeout(() => { historyDropdown.style.display = "none"; }, 200); });
 
     historyDropdown.addEventListener("mousedown", (e) => {
       const item = (e.target as Element).closest(".history-item");
       const clearEl = (e.target as Element).closest(".history-clear");
       if (item) { input.value = item.textContent || ""; historyDropdown.style.display = "none"; input.focus(); }
-      if (clearEl) { try { localStorage.removeItem("pi-design-history"); } catch {} historyDropdown.style.display = "none"; }
+      if (clearEl) { historyMod.clearHistory(); historyDropdown.style.display = "none"; }
     });
 
     cancelBtn.addEventListener("click", () => {
@@ -470,7 +463,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if (selections.length === 0 || isProcessing) return;
       const instruction = input.value.trim();
       if (!instruction) return;
-      saveHistory(instruction);
+  historyMod.saveHistory(instruction);
       const structuralContext = computeStructuralContext();
       submittedOids = selections.map((s) => s.dataOid);
       sendMessage.send({
@@ -608,24 +601,6 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
   }
 
-  function showHistory() {
-    const h = getHistory();
-    if (h.length === 0 || input.value.length > 0) { historyDropdown.style.display = "none"; return; }
-    const title = historyDropdown.querySelector(".history-panel-title")!;
-    historyDropdown.innerHTML = "";
-    historyDropdown.appendChild(title);
-    for (const instr of h) {
-      const item = document.createElement("div");
-      item.className = "history-item";
-      item.textContent = instr;
-      historyDropdown.appendChild(item);
-    }
-    const clearEl = document.createElement("div");
-    clearEl.className = "history-clear";
-    clearEl.textContent = "Clear history";
-    historyDropdown.appendChild(clearEl);
-    historyDropdown.style.display = "flex";
-  }
 
   function destroyWidget() {
     if (processingTimer) { clearTimeout(processingTimer); processingTimer = null; }
