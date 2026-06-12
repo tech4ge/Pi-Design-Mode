@@ -197,7 +197,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       if ("giveUp" in policy) {
         if ((window as any).__piDesignWidget) {
           (window as any).__piDesignWidget.updateConnection(false);
-          (window as any).__piDesignWidget.showError("Disconnected — run /design to restart");
+          (window as any).__piDesignWidget.showError("Disconnected — run /design to restart", true);
         }
         return;
       }
@@ -597,12 +597,14 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
   }
 
-  function showError(message: string) {
+  function showError(message: string, persistent: boolean = false) {
     if (!errorBanner || !errorMsg) return;
     errorMsg.textContent = message;
     errorBanner.style.display = "flex";
     if (errorBannerTimer) clearTimeout(errorBannerTimer);
-    errorBannerTimer = setTimeout(() => { errorBanner.style.display = "none"; }, 10000);
+    if (!persistent) {
+      errorBannerTimer = setTimeout(() => { errorBanner.style.display = "none"; }, 10000);
+    }
   }
 
   function showHistory() {
