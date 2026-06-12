@@ -1,6 +1,6 @@
 # Pi Design Mode
 
-![Pi Design Mode demo](https://github.com/user-attachments/assets/REPLACE-WITH-GIF-URL)
+![Pi Design Mode demo](https://github.com/tech4ge/Pi-Design-Mode/releases/download/v0.0.1-placeholder/Screen-Now-20260611T100559-compressed.gif)
 
 Click elements in your browser, describe changes, and the LLM edits your source code with instant HMR preview. A Cursor Design Mode–style workflow for terminal-based React/Next.js development with [Pi](https://github.com/earendil-works/pi-coding-agent).
 
