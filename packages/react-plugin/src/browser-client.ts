@@ -1,5 +1,6 @@
 import { parseDataOid } from "./data-oid/shared.js";
 import { reconnectPolicy } from "./reconnect-policy.js";
+import type { ClientMessage, ServerMessage } from "./protocol.js";
 
 // Pi Design Mode — Browser Client
 //
@@ -179,7 +180,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   let ws: WebSocket | null = null;
 
-  function connectWS(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
+  function connectWS(sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     ws = new WebSocket(`ws://localhost:${WS_PORT}`);
     ws.onopen = () => {
       isConnected = true;
@@ -214,7 +215,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     };
   }
 
-  function handleServerMessage(message: any, sendMessage: { send(msg: any): void; isConnected(): boolean }) {
+  function handleServerMessage(message: ServerMessage, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     switch (message.type) {
       case "design:mode:off": disconnect(sendMessage); break;
       case "design:highlight": highlightElement(message.dataOid); break;
@@ -265,7 +266,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     }
   }
 
-  function addSelection(sel: any, sendMessage: { send(msg: any): void; isConnected(): boolean }) {
+  function addSelection(sel: any, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     const existing = selections.findIndex((s) => s.dataOid === sel.dataOid);
     if (existing !== -1) {
       removeSelection(sel.dataOid, sendMessage);
@@ -278,7 +279,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     return true;
   }
 
-  function removeSelection(dataOid: string, sendMessage: { send(msg: any): void; isConnected(): boolean }) {
+  function removeSelection(dataOid: string, sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     selections = selections.filter((s) => s.dataOid !== dataOid);
     clearHighlight(dataOid);
     sendMessage.send({ type: "design:deselect", dataOid });
@@ -287,7 +288,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     render();
   }
 
-  function clearAllSelections(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
+  function clearAllSelections(sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     for (const sel of selections) clearHighlight(sel.dataOid);
     selections = [];
     sendMessage.send({ type: "design:deselect", dataOid: "__all__" });
@@ -327,7 +328,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
   let qaMultiBtns: NodeListOf<Element>;
   let hint: HTMLElement;
 
-  function createWidget(sendMessage: { send(msg: any): void; isConnected(): boolean }) {
+  function createWidget(sendMessage: { send(msg: ClientMessage): void; isConnected(): boolean }) {
     if (document.getElementById(WIDGET_ID)) return;
     widgetHost = document.createElement("div");
     widgetHost.id = WIDGET_ID;

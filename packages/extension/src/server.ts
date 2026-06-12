@@ -114,5 +114,3 @@ export class DesignModeServer {
     }
   }
 }
-
-export type { ClientMessage, ServerMessage };
