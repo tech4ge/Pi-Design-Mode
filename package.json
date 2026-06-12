@@ -5,8 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "prepare": "npm run build"
+    "build": "npm run build --workspaces"
   },
   "pi": {
     "extensions": ["./packages/extension/dist/index.js"]
