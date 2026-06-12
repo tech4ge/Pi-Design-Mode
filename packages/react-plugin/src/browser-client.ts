@@ -769,7 +769,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   window.addEventListener("beforeunload", () => {
     if (ws && isConnected) sendMessage.send({ type: "design:disconnect" });
-    disconnect(sendMessage);
+    // Don't call disconnect() — it wipes sessionStorage, which is needed for reload recovery
+    if (ws) { ws.onclose = null; ws.close(); ws = null; isConnected = false; }
+    destroyWidget();
   });
   connectWS(sendMessage);
 }
