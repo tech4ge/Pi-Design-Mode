@@ -85,16 +85,16 @@ You can install directly from the GitHub repository without publishing to npm:
 
 ```bash
 # Latest main branch
-npm install github:<owner>/pi-design-mode
+npm install github:tech4ge/Pi-Design-Mode
 
 # Specific branch or tag
-npm install github:<owner>/pi-design-mode#feature/my-branch
+npm install github:tech4ge/Pi-Design-Mode#feature/my-branch
 
 # Specific commit
-npm install github:<owner>/pi-design-mode#a1b2c3d
+npm install github:tech4ge/Pi-Design-Mode#a1b2c3d
 ```
 
-Replace `<owner>` with the GitHub repository owner. This uses npm's [GitHub dependency](https://docs.npmjs.com/cli/v10/commands/npm-install#github-repository) support. npm will clone the repo and run `npm install` in each workspace, then resolve the packages from the monorepo.
+This uses npm's [GitHub dependency](https://docs.npmjs.com/cli/v10/commands/npm-install#github-repository) support. npm will clone the repo and run `npm install` in each workspace, then resolve the packages from the monorepo.
 
 > **Note:** The `prepare` script runs `npm run build` automatically on install, so the built `dist/` files are generated for you. No manual build step needed.
 
