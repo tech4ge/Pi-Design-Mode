@@ -48,7 +48,7 @@ npm install @pi-design/react-plugin swc-plugin-react-source-string
 const nextConfig: NextConfig = {
   experimental: {
     swcPlugins: [
-      ["swc-plugin-react-source-string", { attr: "data-oid" }],
+      ["swc-plugin-react-source-string", { root: process.cwd() }],
     ],
   },
 };

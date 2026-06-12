@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   experimental: {
     swcPlugins: [
-      ["swc-plugin-react-source-string", { attr: "data-oid" }],
+      ["swc-plugin-react-source-string", { root: process.cwd() }],
     ],
   },
 };
