@@ -401,7 +401,8 @@
       el.removeAttribute("data-pi-highlighted");
     }
     for (let i = 0; i < selections.length; i++) {
-      applyHighlightFn(selections[i].dataOid, colors[i % colors.length], findByOid, resolveSelection, selections[i]);
+      const colorIdx = selections[i].colorIndex ?? i;
+      applyHighlightFn(selections[i].dataOid, colors[colorIdx % colors.length], findByOid, resolveSelection, selections[i]);
     }
   }
   function resolveEl(dataOid, findByOid, resolveSelection, selection) {
@@ -516,8 +517,9 @@
         const el = resolveSelectionElement(s);
         if (!el) continue;
         s.elementRef = new WeakRef(el);
+        if (s.colorIndex === void 0) s.colorIndex = selectionMod.getSelections().length - 1;
         selectionMod.getSelections().push(s);
-        applyHighlight2(s, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+        applyHighlight2(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
         found++;
       }
       if (found > 0) {
@@ -538,8 +540,9 @@
         );
         for (const s of nowFound) {
           s.elementRef = new WeakRef(resolveSelectionElement(s));
+          if (s.colorIndex === void 0) s.colorIndex = selectionMod.getSelections().length - 1;
           selectionMod.getSelections().push(s);
-          applyHighlight2(s, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+          applyHighlight2(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
         }
         render();
         const remaining = missingOids.filter(
@@ -821,7 +824,7 @@
       selectionsContainer.innerHTML = "";
       for (let i = 0; i < selectionMod.getSelections().length; i++) {
         const sel = selectionMod.getSelections()[i];
-        const color = SELECTION_COLORS[i % SELECTION_COLORS.length];
+        const color = SELECTION_COLORS[(sel.colorIndex ?? i) % SELECTION_COLORS.length];
         const parsed = parseDataOid(sel.dataOid);
         const location = parsed ? `${parsed.filePath}:${parsed.line}` : sel.dataOid;
         const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
@@ -855,7 +858,7 @@
             setTimeout(() => {
               const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === selRef.dataOid && s.instanceIndex === selRef.instanceIndex);
               if (selIdx >= 0) {
-                applyHighlight2(selectionMod.getSelections()[selIdx], SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
+                applyHighlight2(selectionMod.getSelections()[selIdx], SELECTION_COLORS[(selectionMod.getSelections()[selIdx].colorIndex ?? selIdx) % SELECTION_COLORS.length]);
               } else {
                 element.style.outline = "";
                 element.style.outlineOffset = "";
@@ -997,7 +1000,10 @@
     let historyMod = createHistory({ localStorage, input: null, historyDropdown: null });
     let ws = null;
     selectionMod = createSelectionManager({
-      applyHighlight: (sel) => applyHighlight2(sel, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]),
+      applyHighlight: (sel) => {
+        if (sel.colorIndex === void 0) sel.colorIndex = selectionMod.getSelections().length - 1;
+        applyHighlight2(sel, SELECTION_COLORS[sel.colorIndex % SELECTION_COLORS.length]);
+      },
       clearHighlight: clearHighlight2,
       reapplyAllHighlights: reapplyAllHighlights2,
       persistSelections

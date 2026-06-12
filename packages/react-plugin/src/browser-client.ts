@@ -104,8 +104,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       const el = resolveSelectionElement(s);
       if (!el) continue;
       s.elementRef = new WeakRef(el);
+      if (s.colorIndex === undefined) s.colorIndex = selectionMod.getSelections().length - 1;
       selectionMod.getSelections().push(s);
-      applyHighlight(s, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+      applyHighlight(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
       found++;
     }
     if (found > 0) {
@@ -131,8 +132,9 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
       );
       for (const s of nowFound) {
         s.elementRef = new WeakRef(resolveSelectionElement(s));
+        if (s.colorIndex === undefined) s.colorIndex = selectionMod.getSelections().length - 1;
         selectionMod.getSelections().push(s);
-        applyHighlight(s, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]);
+        applyHighlight(s, SELECTION_COLORS[s.colorIndex % SELECTION_COLORS.length]);
       }
       render();
 
@@ -227,7 +229,10 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
 
   // --- Selection module (instantiated after highlight functions) ---
   selectionMod = createSelectionManager({
-    applyHighlight: (sel: any) => applyHighlight(sel, SELECTION_COLORS[(selectionMod.getSelections().length - 1) % SELECTION_COLORS.length]),
+    applyHighlight: (sel: any) => {
+      if (sel.colorIndex === undefined) sel.colorIndex = selectionMod.getSelections().length - 1;
+      applyHighlight(sel, SELECTION_COLORS[sel.colorIndex % SELECTION_COLORS.length]);
+    },
     clearHighlight,
     reapplyAllHighlights,
     persistSelections,
@@ -452,7 +457,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
     selectionsContainer.innerHTML = "";
     for (let i = 0; i < selectionMod.getSelections().length; i++) {
       const sel = selectionMod.getSelections()[i];
-      const color = SELECTION_COLORS[i % SELECTION_COLORS.length];
+      const color = SELECTION_COLORS[(sel.colorIndex ?? i) % SELECTION_COLORS.length];
       const parsed = parseDataOid(sel.dataOid);
       const location = parsed ? `${parsed.filePath}:${parsed.line}` : sel.dataOid;
       const instanceLabel = sel.instanceIndex > 0 ? ` #${sel.instanceIndex + 1}` : "";
@@ -483,7 +488,7 @@ if (typeof window !== "undefined" && !(window as any).__piDesignInit) {
           setTimeout(() => {
             const selIdx = selectionMod.getSelections().findIndex((s) => s.dataOid === selRef.dataOid && s.instanceIndex === selRef.instanceIndex);
             if (selIdx >= 0) {
-              applyHighlight(selectionMod.getSelections()[selIdx], SELECTION_COLORS[selIdx % SELECTION_COLORS.length]);
+              applyHighlight(selectionMod.getSelections()[selIdx], SELECTION_COLORS[(selectionMod.getSelections()[selIdx].colorIndex ?? selIdx) % SELECTION_COLORS.length]);
             } else {
               (element as HTMLElement).style.outline = "";
               (element as HTMLElement).style.outlineOffset = "";

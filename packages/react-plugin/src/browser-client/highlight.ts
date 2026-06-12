@@ -53,7 +53,8 @@ export function reapplyAllHighlights(
     el.removeAttribute("data-pi-highlighted");
   }
   for (let i = 0; i < selections.length; i++) {
-    applyHighlightFn(selections[i].dataOid, colors[i % colors.length], findByOid, resolveSelection, selections[i]);
+    const colorIdx = selections[i].colorIndex ?? i;
+    applyHighlightFn(selections[i].dataOid, colors[colorIdx % colors.length], findByOid, resolveSelection, selections[i]);
   }
 }
 
